@@ -35,7 +35,7 @@ class ImageSaver {
 public:
     enum class Format { Png, Bitmap };
     
-    ImageSaver(std::vector<T>& img,int width,int height,std::function<unsigned int (T)> getcolor) : width(width), height(height), img(img), getcolor(getcolor) {};
+    ImageSaver(std::vector<T>& img,int width,int height,std::filesystem::path dst_dir,std::function<unsigned int (T)> getcolor) : width(width), height(height), img(img), getcolor(getcolor), dst_dir_(dst_dir) {};
 
     bool save(Format format, const std::string& name = ""){
         last_error_.clear();
@@ -79,7 +79,7 @@ private:
 
         std::filesystem::path path = std::filesystem::path(filename).filename();
         path.replace_extension(format == Format::Png ? ".png" : ".bmp");
-        return (std::filesystem::path("images") / path).string();
+        return (dst_dir_ / path).string();
     }
     void convert_pixels();
     bool write_png(const std::string& path, int width, int height){
@@ -127,4 +127,5 @@ private:
     std::uint64_t first_save_ms_ = 0;
     bool timer_started_ = false;
     std::string last_error_;
+    std::filesystem::path dst_dir_;
 };

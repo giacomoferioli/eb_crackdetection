@@ -1,5 +1,7 @@
 #pragma once
 
+#include "videosource/event_source.hpp"
+
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -12,23 +14,8 @@
 // High-throughput OpenEB camera wrapper. Events are copied by the OpenEB
 // callback into a bounded SPSC ring, keeping camera decoding independent from
 // application processing. One thread may read while the camera callback writes.
-class EventCamera {
+class EventCamera : public EventSource {
 public:
-    struct Event {
-        std::int64_t timestamp_us;
-        std::uint16_t x;
-        std::uint16_t y;
-        std::uint8_t polarity;
-        std::uint8_t reserved[3]{};
-    };
-
-    struct TriggerEvent {
-        std::int64_t timestamp_us;
-        std::int16_t channel_id;
-        std::uint8_t polarity;
-        std::uint8_t reserved[5]{};
-    };
-
     struct BiasSetting {
         std::string name;
         int value;
@@ -62,23 +49,21 @@ public:
     bool open_serial(const std::string& serial);
     void close();
     bool start();
-    void stop();
+    void stop() override;
 
     bool is_open() const;
-    bool is_running() const;
-    int width() const;
-    int height() const;
+    bool is_running() const override;
+    int width() const override;
+    int height() const override;
     int roi_width() const;
     int roi_height() const;
 
-    // Fastest read API: copies up to max_events into caller-owned memory and
-    // returns the number copied. Call this regularly from the processing loop.
-    std::size_t read_events(Event* destination, std::size_t max_events) noexcept;
+    // Copies events up to the requested stream timestamp into caller-owned memory.
+    std::size_t read_events(Event* destination, std::size_t max_events,
+                            std::int64_t until_timestamp_us) noexcept;
 
-    // Convenience API. Reuses output capacity, but callers should reserve a
-    // suitable size once during setup to guarantee allocation-free reads.
     std::size_t read_events(std::vector<Event>& output,
-                            std::size_t max_events = 0);
+                            std::int64_t until_timestamp_us) override;
     std::size_t pending_events() const noexcept;
     std::size_t event_capacity() const noexcept;
     std::uint64_t dropped_events() const noexcept;
@@ -114,5 +99,5 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-static_assert(sizeof(EventCamera::Event) == 16, "EventCamera::Event must remain compact");
-static_assert(sizeof(EventCamera::TriggerEvent) == 16, "EventCamera::TriggerEvent must remain compact");
+static_assert(sizeof(Event) == 16, "EventCamera::Event must remain compact");
+static_assert(sizeof(TriggerEvent) == 16, "EventCamera::TriggerEvent must remain compact");

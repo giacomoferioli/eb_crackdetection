@@ -1,4 +1,4 @@
-#include "event_camera.hpp"
+#include "videosource/event_camera.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -9,7 +9,7 @@
 #include <mutex>
 #include <utility>
 
-#include "constants.hpp"
+#include "timing.hpp"
 
 #if defined(HAVE_OPENEB)
 #include <metavision/hal/facilities/i_ll_biases.h>
@@ -49,6 +49,7 @@ public:
         trigger_write_position_.store(0, std::memory_order_relaxed);
         dropped_triggers_.store(0, std::memory_order_relaxed);
         trigger_input_enabled_.store(false, std::memory_order_relaxed);
+        timestamp_offset_.store(no_timestamp_offset, std::memory_order_relaxed);
     }
 
     std::size_t read(Event* destination, std::size_t maximum) noexcept {
@@ -106,6 +107,15 @@ public:
         return static_cast<std::size_t>(write - read);
     }
 
+    std::size_t pending_until(std::int64_t timestamp) const noexcept {
+        const std::uint64_t read = read_position_.load(std::memory_order_acquire);
+        const std::uint64_t write = write_position_.load(std::memory_order_acquire);
+        std::size_t count = 0;
+        while (read + count < write && ring_[(read + count) & mask_].timestamp_us <= timestamp)
+            ++count;
+        return count;
+    }
+
     void clear() noexcept {
         const std::uint64_t write = write_position_.load(std::memory_order_acquire);
         read_position_.store(write, std::memory_order_release);
@@ -151,10 +161,23 @@ public:
     }
 
 #if defined(HAVE_OPENEB)
+    std::int64_t timestamp_offset(std::int64_t timestamp) noexcept {
+        std::int64_t offset = timestamp_offset_.load(std::memory_order_acquire);
+        if (offset == no_timestamp_offset) {
+            const std::int64_t new_offset = timing::us() - timestamp;
+            if (timestamp_offset_.compare_exchange_strong(offset, new_offset,
+                                                          std::memory_order_release,
+                                                          std::memory_order_acquire))
+                offset = new_offset;
+        }
+        return offset;
+    }
+
     void push(const Metavision::EventCD* begin,
               const Metavision::EventCD* end) noexcept {
         if (!begin || begin == end || ring_.empty()) return;
 
+        const std::int64_t offset = timestamp_offset(begin->t);
         const std::size_t incoming = static_cast<std::size_t>(end - begin);
         const std::uint64_t write =
             write_position_.load(std::memory_order_relaxed);
@@ -168,13 +191,13 @@ public:
         const std::size_t first = std::min(accepted, capacity_ - index);
         for (std::size_t i = 0; i < first; ++i) {
             const auto& source = begin[i];
-            ring_[index + i] = {static_cast<std::int64_t>(source.t), source.x,
+            ring_[index + i] = {source.t + offset, source.x,
                                 source.y,
                                 static_cast<std::uint8_t>(source.p), {0, 0, 0}};
         }
         for (std::size_t i = first; i < accepted; ++i) {
             const auto& source = begin[i];
-            ring_[i - first] = {static_cast<std::int64_t>(source.t), source.x,
+            ring_[i - first] = {source.t + offset, source.x,
                                 source.y,
                                 static_cast<std::uint8_t>(source.p), {0, 0, 0}};
         }
@@ -186,6 +209,7 @@ public:
 
     void push_triggers(const Metavision::EventExtTrigger* begin, const Metavision::EventExtTrigger* end, std::atomic<std::int64_t>& last_rising_timestamp) noexcept {
         if (!begin || begin == end || trigger_ring_.empty()) return;
+        const std::int64_t offset = timestamp_offset(begin->t);
         const std::size_t incoming = static_cast<std::size_t>(end - begin);
         const std::uint64_t write = trigger_write_position_.load(std::memory_order_relaxed);
         const std::uint64_t read = trigger_read_position_.load(std::memory_order_acquire);
@@ -193,12 +217,12 @@ public:
         const std::size_t accepted = std::min(incoming, free_space);
         for (std::size_t i = 0; i < incoming; ++i) {
             if (begin[i].p != 0) {
-                last_rising_timestamp.store(static_cast<std::int64_t>(begin[i].t), std::memory_order_release);
+                last_rising_timestamp.store(begin[i].t + offset, std::memory_order_release);
                 std::cout << "trigger!" << std::endl;
             }
             if (i < accepted) {
                 trigger_ring_[(static_cast<std::size_t>(write) + i) & trigger_mask_] =
-                    {static_cast<std::int64_t>(begin[i].t), static_cast<std::int16_t>(begin[i].id),
+                    {begin[i].t + offset, static_cast<std::int16_t>(begin[i].id),
                      static_cast<std::uint8_t>(begin[i].p), {0, 0, 0, 0, 0}};
             }
         }
@@ -245,6 +269,8 @@ public:
     alignas(64) std::atomic<std::uint64_t> read_position_{0};
     alignas(64) std::atomic<std::uint64_t> write_position_{0};
     std::atomic<std::uint64_t> dropped_{0};
+    static constexpr std::int64_t no_timestamp_offset = std::numeric_limits<std::int64_t>::min();
+    std::atomic<std::int64_t> timestamp_offset_{no_timestamp_offset};
     static constexpr std::size_t trigger_capacity_ = 1U << 12U;
     static constexpr std::size_t trigger_mask_ = trigger_capacity_ - 1U;
     std::vector<TriggerEvent> trigger_ring_;
@@ -268,13 +294,16 @@ public:
 
 EventCamera::EventCamera(std::size_t event_capacity): impl_(std::make_unique<Impl>(event_capacity)) {
     open_first();
-    load_settings(config::render::camera_settings_path);
+    //TODO:: make config, codex don't you touch this
+    load_settings("data/camera_settings.json");
     set_roi_coordinates_local(true);
     start();
     
 }
 
-EventCamera::~EventCamera() { close(); }
+EventCamera::~EventCamera() { 
+    close(); 
+}
 
 bool EventCamera::open_first() {
 #if defined(HAVE_OPENEB)
@@ -431,24 +460,20 @@ bool EventCamera::is_running() const {
     return impl_->running_.load(std::memory_order_acquire);
 }
 
-int EventCamera::width() const { return impl_->width_; }
-int EventCamera::height() const { return impl_->height_; }
+int EventCamera::width() const { return (impl_->roi_enabled_) ? (int)impl_->roi_width_ : impl_->width_; }
+int EventCamera::height() const { return (impl_->roi_enabled_) ? (int)impl_->roi_height_ : impl_->height_; }
 int EventCamera::roi_width() const { return impl_->roi_width_; }
 int EventCamera::roi_height() const { return impl_->roi_height_; }
 
 std::size_t EventCamera::read_events(Event* destination,
-                                     std::size_t maximum) noexcept {
-    return impl_->read(destination, maximum);
+                                     std::size_t maximum,
+                                     std::int64_t until_timestamp_us) noexcept {
+    return impl_->read(destination, std::min(maximum, impl_->pending_until(until_timestamp_us)));
 }
 
 std::size_t EventCamera::read_events(std::vector<Event>& output,
-                                     std::size_t maximum) {
-    const std::size_t available = impl_->pending();
-    // Once the caller has reserved storage, the default read never grows it.
-    // This makes repeated reads allocation-free without requiring a raw buffer.
-    const std::size_t implicit_limit = output.capacity() == 0 ? available : output.capacity();
-    const std::size_t limit = maximum == 0 ? implicit_limit : maximum;
-    const std::size_t count = std::min(limit, available);
+                                     std::int64_t until_timestamp_us) {
+    const std::size_t count = impl_->pending_until(until_timestamp_us);
     output.resize(count);
     const std::size_t read = impl_->read(output.data(), count);
     output.resize(read);

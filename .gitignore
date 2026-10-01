@@ -1,0 +1,13 @@
+build/
+!build/.gitkeep
+
+objs/
+!objs/.gitkeep
+
+data/
+
+compile_commands.json
+prompt
+
+images/
+proc_images/

@@ -4,7 +4,7 @@ TARGET := build/image_processor
 SRC_DIR := src
 OBJ_DIR := objs
 
-SOURCES := $(wildcard $(SRC_DIR)/*.cpp)
+SOURCES := $(shell find $(SRC_DIR) -name '*.cpp')
 OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 DEPS := $(OBJECTS:.o=.d)
 
@@ -45,12 +45,15 @@ $(TARGET): $(OBJECTS) | build
 	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 build $(OBJ_DIR):
 	mkdir -p $@
 
 run: $(TARGET)
+	rm -f ./images/*
+	rm -f ./proc_images/*
 	./$(TARGET)
 
 clean:

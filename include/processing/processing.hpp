@@ -1,24 +1,28 @@
 #pragma once
 
-#include "event_camera.hpp"
+#include "videosource/event_source.hpp"
 #include "image_saver.hpp"
 #include "utils.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
+
+
 struct Config {
-    std::uint64_t save_interval;
+    bool realtime;
+    std::int64_t save_interval;
     int max_event_rate;
-    std::uint64_t pseudoframe_length;
-    std::uint64_t processing_interval;
+    std::int64_t pseudoframe_length;
+    std::int64_t processing_interval;
 };
 
 // Derive from Processing and implement process_frame() to build an image
 // processor. on_setup() is the place to add controls to settings().
 class Processing {
 public:
-    Processing(Config cfg);
+    Processing(EventSource& source, Config cfg);
     virtual ~Processing() = default;
 
     Processing(const Processing&) = delete;
@@ -30,36 +34,35 @@ protected:
     virtual void on_setup() {}
     virtual void process_frame() = 0;
 
-    // display() remains the processed output for backward compatibility.
-    EventCamera& camera() { return camera_; }
-    const std::vector<EventCamera::Event>& events() const { return events_; }
+    const std::vector<Event>& events() const { return events_; }
     
     int16_t PS(int x, int y) const { return raw_frame[y * width + x ];}
 
 
 private:
-    EventCamera camera_;
+    EventSource& camera_;
 protected:
     Config cfg;
     int width;
     int height;
 
+    std::unique_ptr<ImageSaver<std::int16_t>> img_saver;
+
 private:
     //circular buffer used to assemble the pseudoframe
-    CircularBuffer<EventCamera::Event> event_queue;
+    CircularBuffer<Event> event_queue;
 
     //pseudoframe
     std::vector<std::int16_t> raw_frame;
-
+    ImageSaver<std::int16_t> raw_img_saver;
     
     //buffer for event reading
-    std::vector<EventCamera::Event> events_;
-    ImageSaver<std::int16_t> raw_img_saver;
+    std::vector<Event> events_;
 };
 
 class DummyProcessor final : public Processing {
     public:        
-        DummyProcessor(Config cfg) : Processing(cfg) {}
+        DummyProcessor(EventSource& source, Config cfg) : Processing(source, cfg) {}
 
     private:
         void process_frame() override {};
@@ -78,6 +81,7 @@ inline Config load_config(const std::string& path) {
     config.pseudoframe_length = value;
     value = file["processing_interval"];
     config.processing_interval = value;
+    file["realtime"] >> config.realtime;
 
     return config;
 }
