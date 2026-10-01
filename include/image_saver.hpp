@@ -30,12 +30,11 @@ inline void write_u32(std::vector<std::uint8_t>& data, std::size_t offset, std::
     data[offset + 3] = value >> 24;
 }
 
-template <typename T>
 class ImageSaver {
 public:
     enum class Format { Png, Bitmap };
     
-    ImageSaver(std::vector<T>& img,int width,int height,std::filesystem::path dst_dir,std::function<unsigned int (T)> getcolor) : width(width), height(height), img(img), getcolor(getcolor), dst_dir_(dst_dir) {};
+    ImageSaver(std::function<int (int)> getcolor,int width,int height,std::filesystem::path dst_dir) : width(width), height(height), getcolor(getcolor), dst_dir_(dst_dir) {};
 
     bool save(Format format, const std::string& name = ""){
         last_error_.clear();
@@ -48,7 +47,7 @@ public:
 
         bgr_pixels_.resize((width*height) * 3);
         for (int i = 0; i < width * height; ++i) {
-            std::uint32_t color = getcolor(img[i]);
+            std::uint32_t color = getcolor(i);
             bgr_pixels_[i * 3] = color >> 8;
             bgr_pixels_[i * 3 + 1] = color >> 16;
             bgr_pixels_[i * 3 + 2] = color >> 24;
@@ -63,8 +62,7 @@ public:
 
 private:
     int width, height;
-    std::vector<T>& img;
-    std::function<int (T)> getcolor;
+    std::function<int (int)> getcolor;
 
     std::string output_path(Format format, const std::string& name){
         std::string filename = name;

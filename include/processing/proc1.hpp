@@ -11,6 +11,9 @@ class Proc1 : public Processing{
     void process_frame() override;
 
     private:
+
+    inline int score(int x,int y,int l) const;
+
     int* matrix;
     std::vector<std::int16_t> frame;
 };

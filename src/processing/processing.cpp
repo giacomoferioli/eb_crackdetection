@@ -14,10 +14,10 @@ Processing::Processing(EventSource& source, Config cfg) :
     width(camera_.width()) , height(camera_.height()),
     event_queue(cfg.max_event_rate * 1LL * cfg.pseudoframe_length / 1'000'000),
     raw_frame(width * height,0),
-    raw_img_saver(raw_frame,width,height,"images/", [] (std::int16_t value) {
-            unsigned gray = std::clamp(128 + value * 32, 0, 255);
+    raw_img_saver([this] (int ix) {
+            unsigned gray = std::clamp(128 + raw_frame[ix] * 32, 0, 255);
             return gray << 24U | gray << 16U | gray << 8U | 0xFF;
-      })
+      }, width,height,"images/")
 {
     // Reused on every frame so draining the camera does not allocate.
     events_.reserve(cfg.processing_interval * 1LL * cfg.max_event_rate / 1'000'000);     
