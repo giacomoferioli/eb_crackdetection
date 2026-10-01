@@ -9,6 +9,8 @@
 #include <mutex>
 #include <utility>
 
+#include "constants.hpp"
+
 #if defined(HAVE_OPENEB)
 #include <metavision/hal/facilities/i_ll_biases.h>
 #include <metavision/hal/facilities/i_roi.h>
@@ -264,8 +266,13 @@ public:
     mutable std::string error_;
 };
 
-EventCamera::EventCamera(std::size_t event_capacity)
-    : impl_(std::make_unique<Impl>(event_capacity)) {}
+EventCamera::EventCamera(std::size_t event_capacity): impl_(std::make_unique<Impl>(event_capacity)) {
+    open_first();
+    load_settings(config::render::camera_settings_path);
+    set_roi_coordinates_local(true);
+    start();
+    
+}
 
 EventCamera::~EventCamera() { close(); }
 
@@ -426,6 +433,8 @@ bool EventCamera::is_running() const {
 
 int EventCamera::width() const { return impl_->width_; }
 int EventCamera::height() const { return impl_->height_; }
+int EventCamera::roi_width() const { return impl_->roi_width_; }
+int EventCamera::roi_height() const { return impl_->roi_height_; }
 
 std::size_t EventCamera::read_events(Event* destination,
                                      std::size_t maximum) noexcept {

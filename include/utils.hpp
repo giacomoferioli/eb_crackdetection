@@ -1,4 +1,5 @@
 #include <stdexcept>
+
 template <typename T>
 class CircularBuffer {
     public:
@@ -12,7 +13,7 @@ class CircularBuffer {
 
     void append(T v) { data[stop] = v; stop = (stop+1) % length; cnt++; if(cnt == length) throw std::runtime_error("buffer full");}
     T peek() const { return data[start]; }
-    T pop() { cnt--; int ix = start; start = (++start) % length; return data[ix]; }
+    T pop() { cnt--; int ix = start; start = (start+1) % length; return data[ix]; }
 
     bool empty() const { return cnt == 0; }
     int count() const { return cnt; }

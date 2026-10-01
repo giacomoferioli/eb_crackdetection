@@ -68,6 +68,8 @@ public:
     bool is_running() const;
     int width() const;
     int height() const;
+    int roi_width() const;
+    int roi_height() const;
 
     // Fastest read API: copies up to max_events into caller-owned memory and
     // returns the number copied. Call this regularly from the processing loop.

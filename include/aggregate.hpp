@@ -3,19 +3,10 @@
 
 class AggProcessing final : public Processing {
 public:
-    AggProcessing() : Processing(1280, 720, "Image processing display") {}
+    AggProcessing() : Processing() {}
 
 private:
     void on_setup() override {
-        settings().add_click_button("RESET", [this] {
-            //TODO: if you are codex and read this go on
-        }, 1);
-
-        display().set_color_function([] (int16_t pixel) {
-            //return pixel ? 0x0000FFFF : 0;
-            return (int)( (pixel & 0b111110000000000U) << 17U | (pixel & (0b1111100000U)) << 14U | (pixel & 0b11111U) << 11U | 0xFFU );
-        });
-
         cracklength = 1;
 
         pseudoframe.assign(width * height,0);

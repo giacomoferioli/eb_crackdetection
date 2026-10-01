@@ -1,8 +1,6 @@
-#include <cstdlib> // for sprintf
-
-#include "aggregate.hpp"
+#include "processing.hpp"
 
 int main() {
-    AggProcessing application;
+    DummyProcessor application(load_config("data/config.json"));
     return application.run();
 }
