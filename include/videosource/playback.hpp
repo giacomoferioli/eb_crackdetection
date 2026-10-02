@@ -9,6 +9,7 @@
 class Playback final : public EventSource {
 public:
     explicit Playback(const std::string& path);
+    Playback(const std::string& path, int x, int y, int width, int height);
     ~Playback();
 
     Playback(const Playback&) = delete;

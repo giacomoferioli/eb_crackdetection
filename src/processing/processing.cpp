@@ -15,7 +15,7 @@ Processing::Processing(EventSource& source, Config cfg) :
     event_queue(cfg.max_event_rate * 1LL * cfg.pseudoframe_length / 1'000'000),
     raw_frame(width * height,0),
     raw_img_saver([this] (int ix) {
-            unsigned gray = std::clamp(128 + raw_frame[ix] * 32, 0, 255);
+            unsigned gray = std::clamp(128 + raw_frame[ix] * 16, 0, 255);
             return gray << 24U | gray << 16U | gray << 8U | 0xFF;
       }, width,height,"images/")
 {
@@ -94,7 +94,7 @@ int Processing::run() {
 
     if(!cfg.realtime){
         double simulated_time = (double)(now - run_start) / 1e6, real_time = (double)(timing::us() - run_start) / 1e6;
-        std::cout << "processing ratio: " << simulated_time/ real_time << std::endl;
+        std::cout << "\nprocessing ratio: " << simulated_time/ real_time << std::endl;
     }
 
     return 0;
