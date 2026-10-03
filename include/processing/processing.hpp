@@ -32,6 +32,7 @@ public:
 
 protected:
     virtual void on_setup() {}
+    virtual void on_termination() {}
     virtual void process_frame() = 0;
 
     const std::vector<Event>& events() const { return events_; }

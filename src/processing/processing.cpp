@@ -90,6 +90,7 @@ int Processing::run() {
         }
     }
 
+    on_termination();
     camera_.stop();
 
     if(!cfg.realtime){
