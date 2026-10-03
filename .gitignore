@@ -5,12 +5,10 @@ objs/
 !objs/.gitkeep
 
 data/
+commands/
 
 compile_commands.json
 prompt
 
 images/
 proc_images/
-
-view
-rawview
