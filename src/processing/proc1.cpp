@@ -7,33 +7,23 @@
 #include <iostream> 
 #include <vector>
 
-Proc1::Proc1(EventSource& source, Config cfg) : Processing(source,cfg),f_displacement("displ.csv") {
+Proc1::Proc1(EventSource& source, Config cfg) : Processing(source,cfg),f_displacement("data/displ.csv") {
     
 }
 
 #define OVERLAYSCALING 2
-#define RAWSCALING 32
+#define RAWSCALING 16
 
 void Proc1::on_setup() {
+    frame.assign(width*height,0);
     img_saver.reset(new ImageSaver(
     [this] (int ix) { 
-        int gray = std::clamp(128 + PS(ix) * RAWSCALING,0,255);
-        int red = std::clamp( OVERLAYSCALING * frame[ix],0,255 );
-        int blue = std::clamp( OVERLAYSCALING * -frame[ix],0,255 );
-        int alpha = std::max(red,blue);
+        int gray = std::clamp((int)std::round(frame[ix] * RAWSCALING + 128),0,255);
 
-        return 0xFF 
-        | (red + gray * (256-alpha) / 256) << 24
-        | (gray * (256-alpha)/256) << 16
-        | (blue + gray * (256-alpha) / 256) << 8;
+        return gray << 24U | gray << 16U | gray << 8U| 0xFF;
     },
     width,height,"proc_images/"
     ));
-
-    matrix = new int[9];
-    matrix[0] = matrix[1] = matrix[2] = -1;
-    matrix[3] = matrix[4] = matrix[5] = 1;
-    matrix[6] = matrix[7] = matrix[8] = -1;
 }
 
 void Proc1::on_termination() {
@@ -96,10 +86,6 @@ int Proc1::hlinefinder(int xc,bool type,int h, int minimum_length,bool first){
                 running_score = calcscore(x,(int)std::round(running_y));
                 int running_score_up = calcscore(x,(int)std::round(running_y)+1),
                     running_score_down = calcscore(x,(int)std::round(running_y)-1);
-                
-                frame[(std::round(running_y)+1) * width + x] = running_score_up;
-                frame[(std::round(running_y)) * width + x] = running_score;
-                frame[(std::round(running_y)-1) * width + x] = running_score_down;
 
                 if( running_score_up > running_score){
                     running_score = running_score_up;
@@ -151,9 +137,9 @@ void Proc1::process_frame(){
     double running_score_top = specimen_top_score, running_score_bottom = specimen_bottom_score;
     for(int x = x0; x < width - PROC1_SEARCH_H_L; x++ ){
         //top (black)
-        pix(x,std::round(specimen_top)) = s = score(x, std::round(specimen_top), PROC1_SEARCH_H_L);
-        pix(x,std::round(specimen_top+1)) = sup = score(x, std::round(specimen_top+1), PROC1_SEARCH_H_L);
-        pix(x,std::round(specimen_top-1)) = sdown = score(x, std::round(specimen_top-1), PROC1_SEARCH_H_L);
+        s = score(x, std::round(specimen_top), PROC1_SEARCH_H_L);
+        sup = score(x, std::round(specimen_top+1), PROC1_SEARCH_H_L);
+        sdown = score(x, std::round(specimen_top-1), PROC1_SEARCH_H_L);
 
         if( sup < s ){ specimen_top += (1 - PROC1_INERTIA); s = sup; }
         if( sdown < s ){ specimen_top -= (1 - PROC1_INERTIA); s = sdown; }
@@ -162,9 +148,9 @@ void Proc1::process_frame(){
         if( (int)running_score_top > specimen_top_score / 4) break;
 
         //bottom (white)
-        pix(x,std::round(specimen_bottom)) = s = score(x, std::round(specimen_bottom), PROC1_SEARCH_H_L);
-        pix(x,std::round(specimen_bottom+1)) = sup = score(x, std::round(specimen_bottom+1), PROC1_SEARCH_H_L);
-        pix(x,std::round(specimen_bottom-1)) = sdown = score(x, std::round(specimen_bottom-1), PROC1_SEARCH_H_L);
+        s = score(x, std::round(specimen_bottom), PROC1_SEARCH_H_L);
+        sup = score(x, std::round(specimen_bottom+1), PROC1_SEARCH_H_L);
+        sdown = score(x, std::round(specimen_bottom-1), PROC1_SEARCH_H_L);
 
         if( sup > s ){ specimen_bottom += (1 - PROC1_INERTIA); s = sup; }
         if( sdown > s ){ specimen_bottom -= (1 - PROC1_INERTIA); s = sdown; }
@@ -179,13 +165,29 @@ void Proc1::process_frame(){
 
     double specimen_middle = totheight / n;
 
-    //now we look on the midline to find the pixels
-    int ym = std::round(specimen_middle);
+    static double original_specimen_middle = 0;
+    if(original_specimen_middle == 0 && specimen_middle != NAN){
+        original_specimen_middle = specimen_middle;
+        return;
+    }
 
-    int ybl = hlinefinder(x0,false,3);
+    #define SINKRATE 0.0885//0.0910797808
+    for(int x = 0; x < width; x++){
+        for(int y = 25; y < 80; y++ ){
+            
+            //float offset = (float)framenum * cfg.processing_interval / 1e6 * SINKRATE;
+            float offset = specimen_middle - original_specimen_middle;
 
-    pix(x0, ybl) = -255;
+            float newy_f = y - offset;
 
+            int newy = (int) newy_f;
+            float t = newy_f - std::floor(newy_f);
+
+            pix(x,newy) += (1-t) * PS(x,y);
+            pix(x,newy) += t * PS(x,y);
+        }
+    }
+    
     f_displacement << framenum * cfg.processing_interval / 1e6 << "," << specimen_middle << "\n";
 
     if((++framenum & 0xFF) == 0) std::cout << "\r" << (double)framenum * cfg.processing_interval / 1e6 << "      " << std::flush;

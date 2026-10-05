@@ -18,12 +18,11 @@ class Proc1 : public Processing{
 
     std::ofstream f_displacement;
 
-    std::int16_t& pix(int x,int y) { return frame[y * width + x];}
+    float& pix(int x,int y) { return frame[y * width + x];}
 
     int hlinefinder(int x,bool type, int h = 1, int mininum_length = 20, bool first = false);
 
     inline int score(int x,int y,int l) const;
 
-    int* matrix;
-    std::vector<std::int16_t> frame;
+    std::vector<float> frame;
 };
