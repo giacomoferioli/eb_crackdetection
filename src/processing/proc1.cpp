@@ -112,8 +112,7 @@ int Proc1::hlinefinder(int xc,bool type,int h, int minimum_length,bool first){
     return topy;
 }
 
-void Proc1::process_frame(){
-    static int framenum = 0;
+void Proc1::process_frame(unsigned framenum){
     frame.assign(height * width, 0);
 
     int x0 = width / 8;
@@ -171,7 +170,7 @@ void Proc1::process_frame(){
         return;
     }
 
-    #define SINKRATE 0.0885//0.0910797808
+    #define SINKRATE 0.0885// px/sec
     for(int x = 0; x < width; x++){
         for(int y = 25; y < 80; y++ ){
             
@@ -190,5 +189,4 @@ void Proc1::process_frame(){
     
     f_displacement << framenum * cfg.processing_interval / 1e6 << "," << specimen_middle << "\n";
 
-    if((++framenum & 0xFF) == 0) std::cout << "\r" << (double)framenum * cfg.processing_interval / 1e6 << "      " << std::flush;
 }

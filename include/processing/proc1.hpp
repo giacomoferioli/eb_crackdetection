@@ -1,6 +1,5 @@
 #pragma once
 #include "processing/processing.hpp"
-#include <cstdint>
 
 #include <fstream>
 
@@ -12,7 +11,7 @@ class Proc1 : public Processing{
 
     void on_setup() override;
     void on_termination() override;
-    void process_frame() override;
+    void process_frame(unsigned framenum) override;
 
     private:
 

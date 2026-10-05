@@ -55,7 +55,7 @@ run: $(TARGET)
 	rm -f ./images/*
 	rm -f ./proc_images/*
 	./$(TARGET)
-	./commands/view
+	#./commands/view
 
 clean:
 	rm -f $(OBJECTS) $(DEPS) $(TARGET)

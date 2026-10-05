@@ -43,6 +43,8 @@ int Processing::run() {
         raw_frame[event.y * width + event.x] += (int8_t)event.polarity * 2 - 1;
     }
 
+    unsigned framenum = 0;
+
     std::int64_t last_save = now;
     std::int64_t last_proc_call = now;
     
@@ -70,7 +72,8 @@ int Processing::run() {
             raw_frame[event.y * width + event.x] += (int8_t)event.polarity * 2 - 1;
         }
 
-        process_frame();
+        process_frame(framenum);
+        if(!cfg.realtime && (++framenum & 0xFF) == 0) std::cout << "\r" << (double)framenum * cfg.processing_interval / 1e6 << "      " << std::flush;
 
         if (now - last_save >= cfg.save_interval) {
             if (cfg.realtime && now - last_save > 2 * cfg.save_interval)

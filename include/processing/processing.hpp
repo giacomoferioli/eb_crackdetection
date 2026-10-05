@@ -33,12 +33,14 @@ public:
 protected:
     virtual void on_setup() {}
     virtual void on_termination() {}
-    virtual void process_frame() = 0;
+    virtual void process_frame(unsigned framenum) = 0;
 
     const std::vector<Event>& events() const { return events_; }
     
     int16_t PS(int x, int y) const { return raw_frame[y * width + x ];}
     int16_t PS(int ix) const { return  raw_frame[ix]; }
+
+    std::vector<std::int16_t>& get_raw_frame() { return raw_frame;};
 
 private:
     EventSource& camera_;
@@ -66,7 +68,7 @@ class DummyProcessor final : public Processing {
         DummyProcessor(EventSource& source, Config cfg) : Processing(source, cfg) {}
 
     private:
-        void process_frame() override {};
+        void process_frame(unsigned) override {};
 
 };
 
