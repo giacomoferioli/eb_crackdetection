@@ -23,6 +23,7 @@ Processing::Processing(EventSource& source, Config cfg) :
     events_.reserve(cfg.processing_interval * 1LL * cfg.max_event_rate / 1'000'000);     
 }
 
+#define SINKRATE 0.0813e-6
 int Processing::run() {
     on_setup();
     std::int64_t run_start = timing::us();
@@ -64,11 +65,13 @@ int Processing::run() {
         // Remove events that have left the pseudoframe time window.
         while (!event_queue.empty() && now - event_queue.peek().timestamp_us > cfg.pseudoframe_length) {
             Event event = event_queue.pop();
+            //int y = std::max(0.,std::round(event.y - SINKRATE * event.timestamp_us));
             raw_frame[event.y * width + event.x] -= (int8_t)event.polarity * 2 - 1;
         }
 
         for (const Event& event : events_) {
             event_queue.append(event);
+            //int y = std::max(0.,std::round(event.y - SINKRATE * event.timestamp_us));
             raw_frame[event.y * width + event.x] += (int8_t)event.polarity * 2 - 1;
         }
 

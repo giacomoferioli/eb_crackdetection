@@ -69,6 +69,12 @@ double Proc2::correlate(double x, double y, int width, int height, int x0,int y0
 
 void Proc2::process_frame(unsigned framenum){
     std::fill(frame.begin(),frame.end(),0);
+
+    for(int i = 1; i < width - 1; i++)
+        for(int j = 1; j < height - 1; j++)
+            pix(i,j) = PS(i,j) - PS(i-1,j) - PS(i+1,j) - PS(i,j-1) - PS(i,j+1);
+
+    return;
     static int lastframesave = 0;
     static double lastoffset = 0;   
 
