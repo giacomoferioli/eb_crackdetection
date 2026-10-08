@@ -8,8 +8,9 @@
 // Plays a RAW EVT3 recording through the same interface as the live camera.
 class Playback final : public EventSource {
 public:
-    explicit Playback(const std::string& path);
-    Playback(const std::string& path, int x, int y, int width, int height);
+    explicit Playback(const std::string& path, bool realtime = false);
+    Playback(const std::string& path, int x, int y, int width, int height,
+             bool realtime = false);
     ~Playback();
 
     Playback(const Playback&) = delete;

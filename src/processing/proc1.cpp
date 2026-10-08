@@ -45,7 +45,7 @@ inline int Proc1::score(int x0, int y0, int l) const{
 #define HLINEFINDER_SCORING_H_L 3
 #define HLINEFINDER_RUNNING_Y_INERTIA 0.7
 #define HLINEFINDER_MINIMUM_SCORE_MUL 2
-int Proc1::hlinefinder(int xc,bool type,int h, int minimum_length,bool first){
+int Proc1::hlinefinder(int xc,int y0,int y1,bool type,int h, int minimum_length,bool first){
     int topy = -1, topscore = HLINEFINDER_MINIMUM_SCORE_MUL * HLINEFINDER_SCORING_H_L * h, toptotscore = 0;
     
     auto calcscore = [this,type,h] (int x,int y) {
@@ -57,15 +57,13 @@ int Proc1::hlinefinder(int xc,bool type,int h, int minimum_length,bool first){
         return score;
     };
 
-    for(int y = h / 2; y < height - h; y++){
+    for(int y = std::max(h / 2,y0); y < std::min(height - h,y1); y++){
         //calculates score
         int score = calcscore(xc, y);
-        frame[width * y + xc] = score;
-
         //possible candidate
         if(score > topscore){
-            //now we calculate length
-            
+            //now we calculate length 
+
             //if we have a thick line we may trigger the if prematurely bc a point on the edge of the line has a score big enough
             //this for makes sure we have the possible line true score
             for(int dy = 0; dy < 5; dy++){
@@ -77,15 +75,15 @@ int Proc1::hlinefinder(int xc,bool type,int h, int minimum_length,bool first){
             }
 
             //score of points we are looking at
-            int running_score = score;
+            int running_score = score, length = 1;
             double running_y = y;
-            int length = 1;
             //look rigth
             int totscore = score;
-            for( int x = xc; running_score > score / 2 && x < xc + minimum_length && x < width - HLINEFINDER_SCORING_H_L; x++, length++){
-                running_score = calcscore(x,(int)std::round(running_y));
-                int running_score_up = calcscore(x,(int)std::round(running_y)+1),
-                    running_score_down = calcscore(x,(int)std::round(running_y)-1);
+            for( int x = xc; running_score > score / 2 && x < width - HLINEFINDER_SCORING_H_L; x++, length++){
+                int round_y = std::round(running_y);
+                running_score = calcscore(x,round_y);
+                int running_score_up = calcscore(x,round_y+1),
+                    running_score_down = calcscore(x,round_y-1);
 
                 if( running_score_up > running_score){
                     running_score = running_score_up;
@@ -96,6 +94,28 @@ int Proc1::hlinefinder(int xc,bool type,int h, int minimum_length,bool first){
                     running_score = running_score_down;
                     running_y -= (1 - HLINEFINDER_RUNNING_Y_INERTIA);
                 }
+                pix(x,running_y) = 100;
+
+                if(x > rightmost_x)
+                    rightmost_x = x;
+            }
+            running_score = score;
+            for( int x = xc; running_score > score / 2 && x > HLINEFINDER_SCORING_H_L; x--, length++){
+                int round_y = std::round(running_y);
+                running_score = calcscore(x,round_y);
+                int running_score_up = calcscore(x,round_y+1),
+                    running_score_down = calcscore(x,round_y-1);
+
+                if( running_score_up > running_score){
+                    running_score = running_score_up;
+                    running_y += (1 - HLINEFINDER_RUNNING_Y_INERTIA);
+                }
+
+                if( running_score_down > running_score){
+                    running_score = running_score_down;
+                    running_y -= (1 - HLINEFINDER_RUNNING_Y_INERTIA);
+                }
+                pix(x,running_y) = 100;
             }
             
             if(length > minimum_length && totscore > toptotscore){
@@ -115,78 +135,24 @@ int Proc1::hlinefinder(int xc,bool type,int h, int minimum_length,bool first){
 void Proc1::process_frame(unsigned framenum){
     frame.assign(height * width, 0);
 
-    int x0 = width / 8;
-    
-    double specimen_bottom = hlinefinder(x0, true,3);
-    double specimen_top = hlinefinder(x0, false,1,500,true);
-    
-    //couldn't find specimen outline, drop frame
-    if( specimen_bottom == -1 || specimen_top == -1)
+    if(1e-6 * framenum * cfg.processing_interval < 27)
         return;
 
-    int n = 0;
-    double totheight = 0;
-    //double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    static int cx = 350, cy = 190;
 
-    int s,sup,sdown;
-    #define PROC1_SEARCH_H_L 6
-    #define PROC1_INERTIA 0.7
-    int specimen_bottom_score = score(x0, specimen_bottom, PROC1_SEARCH_H_L),
-        specimen_top_score = score(x0, specimen_top, PROC1_SEARCH_H_L);
-    double running_score_top = specimen_top_score, running_score_bottom = specimen_bottom_score;
-    for(int x = x0; x < width - PROC1_SEARCH_H_L; x++ ){
-        //top (black)
-        s = score(x, std::round(specimen_top), PROC1_SEARCH_H_L);
-        sup = score(x, std::round(specimen_top+1), PROC1_SEARCH_H_L);
-        sdown = score(x, std::round(specimen_top-1), PROC1_SEARCH_H_L);
+    for(int x = std::max(cx - 100,0);x < std::min(cx + 100,width);x++)
+        for(int y = std::max(cy-20,0); y < std::min(cy+20,height); y++)
+            pix(x,y) = PS(x,y);
 
-        if( sup < s ){ specimen_top += (1 - PROC1_INERTIA); s = sup; }
-        if( sdown < s ){ specimen_top -= (1 - PROC1_INERTIA); s = sdown; }
-
-        running_score_top = running_score_top * PROC1_INERTIA + (1 - PROC1_INERTIA) * s;
-        if( (int)running_score_top > specimen_top_score / 4) break;
-
-        //bottom (white)
-        s = score(x, std::round(specimen_bottom), PROC1_SEARCH_H_L);
-        sup = score(x, std::round(specimen_bottom+1), PROC1_SEARCH_H_L);
-        sdown = score(x, std::round(specimen_bottom-1), PROC1_SEARCH_H_L);
-
-        if( sup > s ){ specimen_bottom += (1 - PROC1_INERTIA); s = sup; }
-        if( sdown > s ){ specimen_bottom -= (1 - PROC1_INERTIA); s = sdown; }
-
-        running_score_bottom = running_score_bottom * PROC1_INERTIA + (1 - PROC1_INERTIA) * s;
-        if( (int)running_score_bottom < specimen_bottom_score / 4) break;
-
-        totheight += (specimen_top+specimen_bottom)/2;
-        n++;
-        //pix(x,std::round((specimen_top+specimen_bottom)/2)) = 16;        
-    }
-
-    double specimen_middle = totheight / n;
-
-    static double original_specimen_middle = 0;
-    if(original_specimen_middle == 0 && specimen_middle != NAN){
-        original_specimen_middle = specimen_middle;
-        return;
-    }
-
-    #define SINKRATE 0.0885// px/sec
-    for(int x = 0; x < width; x++){
-        for(int y = 25; y < 80; y++ ){
-            
-            //float offset = (float)framenum * cfg.processing_interval / 1e6 * SINKRATE;
-            float offset = specimen_middle - original_specimen_middle;
-
-            float newy_f = y - offset;
-
-            int newy = (int) newy_f;
-            float t = newy_f - std::floor(newy_f);
-
-            pix(x,newy) += (1-t) * PS(x,y);
-            pix(x,newy) += t * PS(x,y);
-        }
-    }
+    rightmost_x = 0;
     
-    f_displacement << framenum * cfg.processing_interval / 1e6 << "," << specimen_middle << "\n";
+    int y = hlinefinder(cx, cy-20, cy+20, false,2,40);
+    if ( abs(y - cy) > 5 )
+        return;
 
+    cy = y;
+    cx = cx * 0.8 + std::max(cx,rightmost_x - 50) * 0.2;
+
+    
+    //f_displacement << framenum * cfg.processing_interval / 1e6 << "," << specimen_middle << "\n";
 }

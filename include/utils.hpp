@@ -11,7 +11,7 @@ class CircularBuffer {
         delete[] data;
     }
 
-    void append(T v) { data[stop] = v; stop = (stop+1) % length; cnt++; if(cnt == length) throw std::runtime_error("buffer full");}
+    void append(T v) { data[stop] = v; stop = (stop+1) % length; cnt++; if(cnt == length) throw std::runtime_error("buffer full " + std::to_string(length));}
     T peek() const { return data[start]; }
     T pop() { cnt--; int ix = start; start = (start+1) % length; return data[ix]; }
 

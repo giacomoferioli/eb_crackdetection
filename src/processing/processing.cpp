@@ -12,7 +12,7 @@ Processing::Processing(EventSource& source, Config cfg) :
     camera_(source),
     cfg(cfg),
     width(camera_.width()) , height(camera_.height()),
-    event_queue(cfg.max_event_rate * 1LL * cfg.pseudoframe_length / 1'000'000),
+    event_queue(cfg.max_event_rate * cfg.pseudoframe_length / 1'000'000),
     raw_frame(width * height,0),
     raw_img_saver([this] (int ix) {
             unsigned gray = std::clamp(128 + raw_frame[ix] * 16, 0, 255);
@@ -87,7 +87,7 @@ int Processing::run() {
                 if(img_saver != nullptr)
                     img_saver->save_bitmap();
             }else{
-                std::string filename = std::to_string((int)(now-run_start)/1000) + ".bmp";
+                std::string filename = std::to_string((now-run_start)/1000) + ".bmp";
                 raw_img_saver.save_bitmap(filename);
                 if(img_saver != nullptr){
                     img_saver->save_bitmap(filename);

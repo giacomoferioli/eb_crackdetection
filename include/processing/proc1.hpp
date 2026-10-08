@@ -16,11 +16,10 @@ class Proc1 : public Processing{
     private:
 
     std::ofstream f_displacement;
+    int rightmost_x;
 
     float& pix(int x,int y) { return frame[y * width + x];}
-
-    int hlinefinder(int x,bool type, int h = 1, int mininum_length = 20, bool first = false);
-
+    int hlinefinder(int x,int y0,int y1,bool type, int h = 1, int mininum_length = 20, bool first = false);
     inline int score(int x,int y,int l) const;
 
     std::vector<float> frame;
