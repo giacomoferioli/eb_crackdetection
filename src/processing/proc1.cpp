@@ -135,7 +135,7 @@ int Proc1::hlinefinder(int xc,int y0,int y1,bool type,int h, int minimum_length,
 void Proc1::process_frame(unsigned framenum){
     frame.assign(height * width, 0);
 
-    if(1e-6 * framenum * cfg.processing_interval < 27)
+    if(framenum * cfg.processing_interval < 27)
         return;
 
     static int cx = 350, cy = 190;
@@ -154,5 +154,5 @@ void Proc1::process_frame(unsigned framenum){
     cx = cx * 0.8 + std::max(cx,rightmost_x - 50) * 0.2;
 
     
-    //f_displacement << framenum * cfg.processing_interval / 1e6 << "," << specimen_middle << "\n";
+    //f_displacement << framenum * cfg.processing_interval << "," << specimen_middle << "\n";
 }

@@ -5,6 +5,33 @@
 #include <fstream>
 #include <vector>
 
+namespace Proc2cfg {
+    //parameters needed for block creation
+    constexpr int blocks_dist_from_border = 10;
+    constexpr int blocks_x0 = 560,blocks_y0 = 170;
+    constexpr int blocks_w = 50, blocks_h = 50;
+    constexpr int blocks_spacing_x = 50,blocks_spacing_y = 10;
+
+    constexpr int blocks_n_x = 18;
+    constexpr int blocks_n_y = 1;
+
+    //parameters for autocentering the blocks to the specimen using the specimen borders
+    constexpr int specimen_outline_search_interval = 12;
+    constexpr int specimen_autocenter_min_blocks = 4;
+    //constexpr int specimen_outline_line_thickness = 3; HARDCODED at 4
+
+    //maximum sink rate of the specimen used to define DIC search interval
+    constexpr float assumed_max_sinkrate = 0.1;
+}
+
+struct Block{
+    int x0,y0,w,h;
+    int x,y;
+
+    Block(int x0, int y0, int w, int h) : x0(x0), y0(y0), w(w), h(h), x(x0), y(y0) {};
+    Block(int x0, int y0, int w, int h, int x,int y) : x0(x0), y0(y0), w(w), h(h), x(x), y(y) {};
+};
+
 class Proc2 : public Processing{
     public:
     Proc2(EventSource& source, Config cfg);
@@ -17,14 +44,27 @@ class Proc2 : public Processing{
 
     private:
 
-    std::ofstream f_displacement;
+    float update_blocks_position(int maxoffset);
+    float update_DIC_refereces(float blocks_y0);
+    float find_specimen_body(float t);
 
-    double correlate(int x, int y, int width, int height, int x0,int y0);
-    double correlate(double x, double y, int width, int height, int x0,int y0);
+    float correlate(int x, int y, Block block);
+    float correlate(float x, float y, Block block);
+
+    void init(float t);
+    void procFrame();
 
     float& pix(int x,int y) { return frame[y * width + x];}
-    std::int16_t& refPS(int x, int y) {return ref_raw_frame[y * width + x];}
+    float& refPS(int x, int y) {return ref_raw_frame[y * width + x];}
+    float& procPS(int x, int y) {return procframe[y * width + x];}
 
-    std::vector<std::int16_t> ref_raw_frame;
+    std::vector<Block> blocks;
+
+    float ref_frame_last_save;
+    std::vector<float> ref_raw_frame;
+
+    std::vector<float> procframe;
     std::vector<float> frame;
+
+    std::ofstream output_file;
 };

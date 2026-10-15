@@ -1,7 +1,9 @@
 #pragma once
 #include "processing/processing.hpp"
 
-#include <fstream>
+#include "processing/hline4.hpp"
+
+#include <cstdint>
 #include <vector>
 
 class Proc3 : public Processing{
@@ -16,13 +18,12 @@ class Proc3 : public Processing{
 
     private:
 
+    std::vector<HLine4> find_lines(HLinePolarity polarity, int n);
+
     //std::ofstream f_displacement;
+    void general_identification();
 
-    float& pix(int x,int y) { return frame[y * width + x];}
-    float& inter_pix(int x,int y) { return inter_frame[y * width + x];}
+    std::uint32_t& pix(int x,int y) { return frame[y * width + x];}
 
-    inline float hlinescore(int x,int y,int l) const;
-
-    std::vector<float> frame;
-    std::vector<float> inter_frame;
+    std::vector<std::uint32_t> frame;
 };

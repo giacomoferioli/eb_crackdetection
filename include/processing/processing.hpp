@@ -12,10 +12,11 @@
 
 struct Config {
     bool realtime;
-    std::int64_t save_interval;
+    double save_interval;
     int max_event_rate;
-    std::int64_t pseudoframe_length;
-    std::int64_t processing_interval;
+    double pseudoframe_length;
+    double processing_interval;
+    double saving_start, saving_end, analysis_start;
 };
 
 // Derive from Processing and implement process_frame() to build an image
@@ -75,16 +76,15 @@ class DummyProcessor final : public Processing {
 inline Config load_config(const std::string& path) {
     cv::FileStorage file(path, cv::FileStorage::READ);
     Config config;
-    int value;
 
-    value = file["save_interval"];
-    config.save_interval = value;
+    file["save_interval"] >> config.save_interval;
     config.max_event_rate = file["max_event_rate"];
-    value = file["pseudoframe_length"];
-    config.pseudoframe_length = value;
-    value = file["processing_interval"];
-    config.processing_interval = value;
+    file["pseudoframe_length"] >> config.pseudoframe_length;
+    file["processing_interval"] >> config.processing_interval;
     file["realtime"] >> config.realtime;
 
+    file["saving_start"] >> config.saving_start;
+    file["saving_end"] >> config.saving_end;
+    file["analysis_start"] >> config.analysis_start;
     return config;
 }

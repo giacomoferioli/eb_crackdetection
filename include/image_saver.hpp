@@ -34,7 +34,7 @@ class ImageSaver {
 public:
     enum class Format { Png, Bitmap };
     
-    ImageSaver(std::function<int (int)> getcolor,int width,int height,std::filesystem::path dst_dir) : width(width), height(height), getcolor(getcolor), dst_dir_(dst_dir) {};
+    ImageSaver(std::function<unsigned (int)> getcolor,int width,int height,std::filesystem::path dst_dir) : width(width), height(height), getcolor(getcolor), dst_dir_(dst_dir) {};
 
     bool save(Format format, const std::string& name = ""){
         last_error_.clear();
@@ -58,11 +58,13 @@ public:
     bool save_png(const std::string& name = "") {return save(Format::Png, name);}
     bool save_bitmap(const std::string& name = "") {return save(Format::Bitmap, name);}
 
+    void set_color_function(std::function<int (int)> getcolor) { this->getcolor = getcolor;}
+
     const std::string& last_error() const { return last_error_; }
 
 private:
     int width, height;
-    std::function<int (int)> getcolor;
+    std::function<unsigned (int)> getcolor;
 
     std::string output_path(Format format, const std::string& name){
         std::string filename = name;

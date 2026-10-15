@@ -3,141 +3,292 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <iostream> 
-#include <limits>
 #include <vector>
 
-Proc2::Proc2(EventSource& source, Config cfg) : Processing(source,cfg),f_displacement("data/displ2.csv") {
+#define PROC2_DRAW
+
+Proc2::Proc2(EventSource& source, Config cfg) : Processing(source,cfg), output_file("data/proc2out.csv") {
     
 }
 
-#define OVERLAYSCALING 2
+#define OVERLAYSCALING 1
 #define RAWSCALING 16
 
 void Proc2::on_setup() {
     frame.assign(width*height,0);
+    procframe.assign(width*height,0);
     img_saver.reset(new ImageSaver(
     [this] (int ix) { 
-        int gray = std::clamp((int)std::round(frame[ix] * RAWSCALING + 128),0,255);
+        int gray = std::clamp((int)std::round(procframe[ix] * RAWSCALING + 128),0,255);
+        float alpha = std::clamp(frame[ix] * OVERLAYSCALING,0.0F,1.0F);
+        unsigned int red = std::round(alpha * 255 + (1 - alpha) * gray);
+        unsigned int green_blue = std::round((1 - alpha) * gray);
 
-        return gray << 24U | gray << 16U | gray << 8U| 0xFF;
+        return red << 24U | green_blue << 16U | green_blue << 8U | 0xFF;
     },
     width,height,"proc_images/"
     ));
 }
 
 void Proc2::on_termination() {
-    //f_displacement.close();
+    output_file.close();
 }
+
+
+void Proc2::procFrame(){
+    std::fill(procframe.begin(),procframe.end(),0);
+    //gaussian blur
+    //kills hot pixels
+    std::vector<std::int16_t> rawframe = get_raw_frame();
+    
+    int c = 0;
+    for(int j = 1; j < height - 1; j++){
+        const int offset = j * width;
+        for(int i = 1; i < width - 1; i++){
+            const int ix = offset + i;
+            float avg = (float)(abs(rawframe[ix - 1]) + abs(rawframe[ix + 1]) + abs(rawframe[ix - width]) +abs(rawframe[ix + width]))/4;
+
+            if(abs(rawframe[ix]) > 5 && abs(rawframe[ix]) > 8 * avg){
+                rawframe[ix] = rawframe[ix] > 0 ? std::round(avg) : -std::round(avg);
+                c++;
+            }
+        }
+    }        
+    //std::cout << c << std::endl;
+
+    for(int j = 1; j < height - 1; j++){
+        const int offset = j * width;
+        for(int i = 1; i < width - 1; i++){
+            const int ix = offset + i;
+            procPS(i,j) = ( 
+                12.f * rawframe[ix] 
+                + 2.f * ( rawframe[ix+1] + rawframe[ix-1] + rawframe[ix+width] + rawframe[ix-width])
+                + 1.f * ( rawframe[ix+width+1] + rawframe[ix+width-1] + rawframe[ix-width-1] + rawframe[ix-width+1])
+                ) / 24.f;
+        }
+    }
+}           
 
 /*
     return the error between the square (x,y,w,h) in current frame and the square (x0,y0,w,h) in the reference frame
 */
-double Proc2::correlate(int x, int y, int width, int height, int x0,int y0){
-    double R2 = 0;
-    for(int i = 0; i < width; i++)
-        for(int j = 0; j < height; j++)
-            R2 += pow(PS(x+i,y+j) - refPS(x0+i,y0+j) ,2);
-
+float Proc2::correlate(int x, int y, Block block){
+    if( x + block.w > width || block.x0 + block.w > width || y + block.h > height || block.y0 + block.h > height){
+        std::cout << "[Proc2/correlate] invalid call " << x << " " << y << ", block: " << block.x0 << " " << block.y0 << " " << block.w << " " << block.h << std::endl;
+        return INFINITY;  
+    }
+    
+    float R2 = 0;
+    for(int i = 0; i < block.w; i++)
+        for(int j = 0; j < block.h; j++){
+            const float v = procPS(x+i,y+j) - refPS(block.x0+i,block.y0+j); 
+            R2 += v * v;
+    
+        }
+        
     return R2;
 }
 
-double Proc2::correlate(double x, double y, int width, int height, int x0,int y0){
-    double R2 = 0;
-    double tx = x - std::floor(x), ty = y - std::floor(y);
+float Proc2::correlate(float x, float y, Block block){
+    float R2 = 0;
+    float tx = x - std::floor(x), ty = y - std::floor(y);
 
-    for(int i = 0; i < width; i++)
-        for(int j = 0; j < height; j++){
+    for(int i = 0; i < block.w;i++)
+        for(int j = 0; j < block.h; j++){
             int xi = std::floor(x+i), yi = std::floor(y+j);
-            double bl = PS(xi,yi), br = PS(xi+1,yi), tl = PS(xi,yi+1),tr =PS(xi+1,yi+1);
-            double v = (bl * (1-tx) + br * tx)  * (1-ty) + (tl * (1-tx) + tr * tx) * ty;
-            R2 += pow(v - refPS(x0+i,y0+j) ,2);
+            float bl = procPS(xi,yi), br = procPS(xi+1,yi), tl = procPS(xi,yi+1),tr =procPS(xi+1,yi+1);
+            float v = (bl * (1-tx) + br * tx)  * (1-ty) + (tl * (1-tx) + tr * tx) * ty;
+            v -= refPS(block.x0+i,block.y0+j);
+            R2 += v * v;
+        }
+    return R2;
+}
+
+void Proc2::init(float t){
+    procFrame();
+    ref_raw_frame = procframe;
+    ref_frame_last_save = t;
+
+    for(int i = 0; i < Proc2cfg::blocks_n_x; i++)
+        for(int j = 0; j < Proc2cfg::blocks_n_y; j++)
+            //blocks.push_back( {Proc2cfg::blocks_x0 + i * Proc2cfg::blocks_spacing_x,Proc2cfg::blocks_y0 + j * Proc2cfg::blocks_spacing_y,Proc2cfg::blocks_w,Proc2cfg::blocks_h });
+            blocks.push_back( {
+                width - Proc2cfg::blocks_dist_from_border - Proc2cfg::blocks_spacing_x * (Proc2cfg::blocks_n_x - 1) - Proc2cfg::blocks_w + i * Proc2cfg::blocks_spacing_x,
+                Proc2cfg::blocks_y0 + j * Proc2cfg::blocks_spacing_y,
+                Proc2cfg::blocks_w,Proc2cfg::blocks_h });
+}
+
+/*
+    maxoffset: guesstimation of maximum vertical movement of the blocks (DIC is very expensive)
+    tracks the blocks' vertical motion using DIC and updates their position
+    returns average y position of the blocks (!y not midline!)
+*/
+float Proc2::update_blocks_position(int maxoffset){
+    float y_tot = 0;
+    for(Block& block : blocks) {
+        float minscore = 1e10;
+        int miny = 0;
+        for(int y = block.y0; y < block.y0 + maxoffset; y++){
+            const float score = correlate(block.x0,y,block);
+
+            if(score < minscore){
+                minscore = score;
+                miny = y; 
+            }
         }
 
+        block.y = miny;
+        y_tot += miny;
+    }
 
-    return R2;
+    return y_tot / blocks.size();
 }
 
-#define original_specimen_middle 40
-#define H 40
-#define W 60
+/* Updates the block DIC references
+    notes: assumes the blocks (except the first) have the same y0,y,w,h
+    TODOs: compensate horizontal movement of the specimen
+    1. copies the actual proc frame to the reference frame
+    2. if there are too few blocks it just updates the block references with the actual block position and returns
+    3. uses a line finder algorithm to find specimen top (black) and bottom (white), searches in procimity of the blocks top and bottom
+    4. using the specimen top and bottom it modifies block's references (y0 and h) so that they overlay the specimen
+        - first block does not get centered, if the other blocks get offset by X pixels by the centering so is the first block
+    retruns the specimen midline
+*/
+float Proc2::update_DIC_refereces(float blocks_y0){
+    ref_raw_frame = procframe;
+        
+    //no blocks
+    if(blocks.size() == 0)
+        return -1.;
+    //the first few blocks are in the part of the speciment where the outline is not a line
+    if(blocks.size() < Proc2cfg::specimen_autocenter_min_blocks ){
+        for(Block& b : blocks)
+            b.y0 = b.y;
+        return -1.;
+    }
 
-#define T0 15'000'000
-#define T 10'000'000
-#define MAXSINKRATE 0.1
+        //now we have to find the top and bottom lines
+    const int x0 = blocks[0].x, x1 = blocks.back().x + blocks.back().w;
+    const int black_y0 = std::max((int)std::round(blocks_y0) - Proc2cfg::specimen_outline_search_interval / 2,0), 
+              white_y0 = (int)std::round(blocks_y0) + blocks[0].h - Proc2cfg::specimen_outline_search_interval / 2;
 
+    float black_line = 0, white_line = 0;
+
+    for(int x = x0; x < x1; x++){
+        float black_topscore = 0, black_topy = black_y0 + Proc2cfg::specimen_outline_search_interval;
+        float white_topscore = 0, white_topy = white_y0;
+
+        float black_score = -(procPS(x, black_y0 - 2) + procPS(x, black_y0 - 1) + procPS(x, black_y0));
+        float white_score =  (procPS(x, white_y0 - 2) + procPS(x, white_y0 - 1) + procPS(x, white_y0));
+
+        for(int dy = 0; dy < Proc2cfg::specimen_outline_search_interval && white_y0 + dy < height; dy++){
+            black_score -= procPS(x,black_y0+dy+1);
+            if(black_score > black_topscore) { black_topscore = black_score; black_topy = black_y0 + dy; }
+            black_score += procPS(x,black_y0+dy-2);
+
+            white_score += procPS(x,white_y0+dy+1);
+            if(white_score > white_topscore) { white_topscore = white_score; white_topy = white_y0 + dy; }
+            white_score -= procPS(x,white_y0+dy-2);
+        }
+
+        black_line += black_topy;
+        white_line += white_topy;
+    }
+
+    black_line /= (float)(x1-x0);
+    white_line /= (float)(x1-x0);
+
+    #ifdef PROC2_DRAW
+    for(int x = x0; x < x1; x++){
+        pix(x,std::round(black_line)) = 1;
+        pix(x,std::round(white_line)) = 1;
+    }
+    #endif
+
+    const int new_y0 = std::round(black_line), new_h = std::round(white_line-black_line);
+    //first block must not be center and allowed to drift with the crack
+    blocks[0].y0 = blocks[0].y + (new_y0 - blocks[1].y);
+    blocks[0].h = new_h;
+    //other blocks are centered to specimen
+    for( size_t i = 1; i < blocks.size(); i++){
+        blocks[i].y0 = new_y0;
+        blocks[i].h = new_h;
+    }
+
+    return (white_line + black_line) / 2;
+}
+
+float Proc2::find_specimen_body(float t){
+    if( blocks.size() == 0)
+        return -1.;
+    
+    float current_avg = 0;
+    for( Block b : blocks) current_avg += b.y0;
+    current_avg /= blocks.size();
+
+    //[HC] 3
+    const int maxoffset = 3 + std::ceil(Proc2cfg::assumed_max_sinkrate * (t-ref_frame_last_save));
+
+    // [HC] how far the specimen might have gone
+    float new_avg = update_blocks_position(maxoffset);
+    
+    // [HC] drop the first block if it is out of line
+    // [Note] a lone block is never gonna get dropped, we can still assume blocks non-empty
+    // [Note] da capire come fare meglio, finché la storia rimane quasi statica sta roba funziona
+    if(abs(blocks[0].y - new_avg) > 5 ){
+        //removes first block from new average and then removes the first block
+        new_avg = (new_avg * blocks.size() - blocks[0].y ) / (blocks.size() - 1);
+        blocks.erase(blocks.begin());
+    }
+
+    // blocks (excluded the 1st one) get realigned
+    for(size_t i = 1; i < blocks.size(); i++)
+        blocks[i].y = new_avg;
+ 
+    float midline = new_avg + (float)blocks[0].h / 2;
+    //[HC] if specimen has moved enough we update DIC refences
+    if( new_avg - current_avg > 10){
+        
+        ref_frame_last_save = t;
+        float val = update_DIC_refereces(new_avg);
+        if ( val > 0 )
+            midline = val;
+
+        // 10 -> update every 100s
+        //std::cout << "updated DIC ref t:" << t << std::endl;
+    }
+
+    //TODO: finish
+
+    output_file << t << "," << midline << "\n";
+    return midline;
+
+}
 
 void Proc2::process_frame(unsigned framenum){
-    std::fill(frame.begin(),frame.end(),0);
-
-    for(int i = 1; i < width - 1; i++)
-        for(int j = 1; j < height - 1; j++)
-            pix(i,j) = PS(i,j) - PS(i-1,j) - PS(i+1,j) - PS(i,j-1) - PS(i,j+1);
-
-    return;
-    static int lastframesave = 0;
-    static double lastoffset = 0;   
-
+    float t = framenum * cfg.processing_interval;
+    std::fill(frame.begin(), frame.end(), 0);
+    //load the first frame as reference
+    //this assumes that analysis start is high enough that a fully formed pseudoframe is already formed
     if( ref_raw_frame.size() == 0){
-        if(framenum * cfg.processing_interval > T0){
-            ref_raw_frame = get_raw_frame();
-            lastframesave = framenum;
-        }
-        else
-            return;
+        init(t);
+        return;
     }
-
-
-
-    int maxoffset = 3 + std::ceil(MAXSINKRATE * (framenum - lastframesave) * cfg.processing_interval / 1e6);
-
-    int y = original_specimen_middle - H / 2;
     
-    double minscore = 1e10;
-    int offset_i = 0;
-    int x = 560;// 450 + 1.5e-6 * framenum * cfg.processing_interval;
-    for(int dy = 0; dy < maxoffset; dy++){
-        double score = correlate(x, y+dy, W,H,x,y);
 
-        if(score < minscore){
-            minscore = score;
-            offset_i = dy; 
-        }
-    }
+    procFrame();
 
-    double offset = offset_i;
-    for(double offset_d = offset_i - 0.9; offset_d < offset_i+0.999; offset_d += 0.1){
-        double score = correlate((double)x, y +offset_d, W,H,x,y);
+    find_specimen_body(t);
 
-        if(score < minscore){
-            minscore = score;
-            offset = offset_d; 
-        }
-    }
-
-    offset += lastoffset;
-
-    if( (framenum & 0b111) == 0)
-        f_displacement << framenum * cfg.processing_interval / 1e6 << "," << offset << "\n";
-
-    for(int x = 0; x < width; x++){
-        for(int y = 0; y < 100; y++ ){
-            
-            //float offset = (float)framenum * cfg.processing_interval / 1e6 * SINKRATE;
-            
-            double t = offset - std::floor(offset);
-            int y0 = y + (int)offset;
-            pix(x,y) = PS(x,y0) * (1-t) + PS(x,y0+1) * t;
-        }
-    }
-
-
-    if((framenum-lastframesave) * cfg.processing_interval > T){
-        ref_raw_frame = get_raw_frame();
-        lastframesave = framenum;
-        lastoffset = offset;
-        
-    }
-        
-    
+    #ifdef PROC2_DRAW
+    float a = .3 + .2 * rand() / RAND_MAX;
+    for( Block b : blocks)
+        for(int i = 0; i < b.w; i++)
+            for(int j = 0; j < b.h; j++)
+                pix(b.x +i,b.y+j) += a;
+    #endif
 }
