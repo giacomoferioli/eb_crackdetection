@@ -1,5 +1,7 @@
+#include <cstddef>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 // Maximum memory occupied by the element array of one circular buffer.
 #define CIRCULAR_BUFFER_MAX_MEMORY_BYTES (1ULL << 30)
@@ -60,3 +62,44 @@ class CircularBuffer {
         const unsigned original_length;
 
 };
+
+template <typename scalar>
+scalar kill_outliers(const std::vector<scalar>& data, size_t ix, int num){
+    int i0 = (int)ix - num/2;
+    size_t i1 = ix + num/2 + (num & 1);
+    while(i0 < 0){
+        i0++;
+        i1++;
+    }
+    
+    while(i1 > data.size()){
+        i0--;
+        i1--;
+    }
+    if(i0 < 0)
+        i0 = 0;
+
+    num = i1 - i0;
+
+    float avg=0, R2=0;
+    for(size_t i = i0; i < i1;i++){
+        if(i == ix)
+            continue;
+        avg += data[i];
+    }
+    avg /= (num-1);
+
+    for(size_t i = i0; i < i1; i++){
+        if(i == ix)
+            continue;
+
+        R2 += pow(data[i] - avg,2);
+    }
+    R2 /= (num-1);
+
+    if( pow(data[ix]-avg,2) > 3 * R2 )
+        return avg;
+    else
+        return data[ix];
+
+}

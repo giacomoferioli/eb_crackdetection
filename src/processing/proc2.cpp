@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream> 
+#include <ostream>
 #include <vector>
 
 #define PROC2_DRAW
@@ -153,7 +154,7 @@ float Proc2::update_blocks_position(int maxoffset){
     TODOs: compensate horizontal movement of the specimen
     1. copies the actual proc frame to the reference frame
     2. if there are too few blocks it just updates the block references with the actual block position and returns
-    3. uses a line finder algorithm to find specimen top (black) and bottom (white), searches in procimity of the blocks top and bottom
+    3. uses a line finder algorithm to find specimen top (black) and bottom (white), searches in proximity of the blocks top and bottom
     4. using the specimen top and bottom it modifies block's references (y0 and h) so that they overlay the specimen
         - first block does not get centered, if the other blocks get offset by X pixels by the centering so is the first block
     retruns the specimen midline
@@ -171,7 +172,7 @@ float Proc2::update_DIC_refereces(float blocks_y0){
         return -1.;
     }
 
-        //now we have to find the top and bottom lines
+    //now we have to find the top and bottom lines
     const int x0 = blocks[0].x, x1 = blocks.back().x + blocks.back().w;
     const int black_y0 = std::max((int)std::round(blocks_y0) - Proc2cfg::specimen_outline_search_interval / 2,0), 
               white_y0 = (int)std::round(blocks_y0) + blocks[0].h - Proc2cfg::specimen_outline_search_interval / 2;
@@ -249,10 +250,10 @@ float Proc2::find_specimen_body(float t){
     for(size_t i = 1; i < blocks.size(); i++)
         blocks[i].y = new_avg;
  
-    float midline = new_avg + (float)blocks[0].h / 2;
-    //[HC] if specimen has moved enough we update DIC refences
-    if( new_avg - current_avg > 10){
-        
+    
+    midline = new_avg + (float)blocks[0].h / 2;
+    //if specimen has moved enough we update DIC refences
+    if( new_avg - current_avg > Proc2cfg::max_displacement_before_DIC_ref_update){
         ref_frame_last_save = t;
         float val = update_DIC_refereces(new_avg);
         if ( val > 0 )
@@ -266,7 +267,62 @@ float Proc2::find_specimen_body(float t){
 
     output_file << t << "," << midline << "\n";
     return midline;
+}
 
+#define L 10
+#define C 2
+
+float Proc2::find_crack(){
+    if(blocks.size() == 0)
+        return 0.;
+
+    //now we have to find the top and bottom lines
+    const int x0 = blocks[0].x, x1 = x0 + 300;
+    const int y0 = std::round(midline) - L;
+
+    const int scores_width = x1 - x0;
+    size_t vecsize = scores_width*(2*L+1);
+    std::vector<float> scores(vecsize);
+
+    for(int dy = 0; dy < 2*L+1; dy++){
+        int offset = dy * scores_width;
+        int y = y0 + dy;
+
+        float runningscore = 0;
+        for(int x = x0 - C; x < x0 + C; x++)
+            runningscore += procPS(x,y);
+
+        for(int dx = 0; dx < scores_width; dx++){
+            runningscore += procPS(x0 + dx + C,y);
+            scores[offset + dx] = runningscore;
+            runningscore -= procPS(x0 +dx - C,y);
+        }
+    }
+
+    for(int x = x0; x < x1 && x + C < width; x++){
+        float highscore = 0, highy = y0;
+        float lowscore = 0, lowy = y0;
+
+        for(int dy = 1; dy < 2 * L; dy++){
+            #define scoreof(x,y) scores[scores_width * (y) + (x)]
+            float score = scoreof(x-x0,dy+1) + scoreof(x-x0,dy) +scoreof(x-x0,dy-1);
+
+            if(score > highscore){
+                highscore = score;
+                highy = y0+dy;
+            }
+            if(score < lowscore){
+                lowscore = score;
+                lowy = y0 +dy;
+            }
+        }
+
+        pix(x,std::round(midline)) = 1;
+        pix(x,highy) = 1;
+        pix(x,lowy) = 1;
+    }
+
+    return 0;
 }
 
 void Proc2::process_frame(unsigned framenum){
@@ -279,10 +335,18 @@ void Proc2::process_frame(unsigned framenum){
         return;
     }
     
-
     procFrame();
 
-    find_specimen_body(t);
+    static float last_specimen_body_search_t = 0;
+    if(t- last_specimen_body_search_t > Proc2cfg::specimen_body_search_interval){
+    
+        find_specimen_body(t);
+        last_specimen_body_search_t = t;
+    }
+
+    find_crack();
+    
+
 
     #ifdef PROC2_DRAW
     float a = .3 + .2 * rand() / RAND_MAX;

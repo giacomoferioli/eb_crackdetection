@@ -18,10 +18,12 @@ namespace Proc2cfg {
     //parameters for autocentering the blocks to the specimen using the specimen borders
     constexpr int specimen_outline_search_interval = 12;
     constexpr int specimen_autocenter_min_blocks = 4;
+    constexpr int max_displacement_before_DIC_ref_update = 7;
     //constexpr int specimen_outline_line_thickness = 3; HARDCODED at 4
 
     //maximum sink rate of the specimen used to define DIC search interval
     constexpr float assumed_max_sinkrate = 0.1;
+    constexpr float specimen_body_search_interval = 1.0;
 }
 
 struct Block{
@@ -47,6 +49,8 @@ class Proc2 : public Processing{
     float update_blocks_position(int maxoffset);
     float update_DIC_refereces(float blocks_y0);
     float find_specimen_body(float t);
+    float find_crack();
+
 
     float correlate(int x, int y, Block block);
     float correlate(float x, float y, Block block);
@@ -58,6 +62,10 @@ class Proc2 : public Processing{
     float& refPS(int x, int y) {return ref_raw_frame[y * width + x];}
     float& procPS(int x, int y) {return procframe[y * width + x];}
 
+    /*  useful data for crack search */
+       double midline; 
+
+    /* */
     std::vector<Block> blocks;
 
     float ref_frame_last_save;
