@@ -6,7 +6,8 @@
 
 int main(int, char**) {
     Config config = load_config("data/config.json");
-    Playback playback("data/long.raw", config.realtime);
+    Playback playback("data/test2.raw", config.realtime);
+    //DummyProcessor application(playback,config);
     Proc2b application(playback, config);
     return application.run();
 }

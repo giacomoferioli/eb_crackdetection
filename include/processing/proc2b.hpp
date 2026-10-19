@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 
+/* Test 1
 namespace Proc2cfg {
     //parameters needed for block creation
     constexpr int blocks_dist_from_border = 10;
@@ -18,6 +19,27 @@ namespace Proc2cfg {
 
     //parameters for autocentering the blocks to the specimen using the specimen borders
     constexpr int specimen_outline_search_interval = 15;
+    constexpr int specimen_autocenter_min_blocks = 4;
+    constexpr int max_displacement_before_DIC_ref_update = 5;
+    //constexpr int specimen_outline_line_thickness = 3; HARDCODED at 4
+
+    //maximum sink rate of the specimen used to define DIC search interval
+    constexpr float assumed_max_sinkrate = 0.1;
+    constexpr float specimen_body_search_interval = 1.0;
+}
+*/
+namespace Proc2cfg {
+    //parameters needed for block creation
+    constexpr int blocks_dist_from_border = 10;
+    constexpr int blocks_x1 = 1220,blocks_y0 = 80;
+    constexpr int blocks_w = 20, blocks_h = 17;
+    constexpr int blocks_spacing_x = 20,blocks_spacing_y = 17;
+
+    constexpr int blocks_n_x = 40;
+    constexpr int blocks_n_y = 2;
+
+    //parameters for autocentering the blocks to the specimen using the specimen borders
+    constexpr int specimen_outline_search_interval = 12;
     constexpr int specimen_autocenter_min_blocks = 4;
     constexpr int max_displacement_before_DIC_ref_update = 5;
     //constexpr int specimen_outline_line_thickness = 3; HARDCODED at 4
@@ -83,4 +105,5 @@ class Proc2b : public Processing{
     Frame overlay_frame;
 
     std::ofstream output_file;
+    std::ofstream output_file_2;
 };

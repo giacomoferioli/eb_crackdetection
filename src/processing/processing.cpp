@@ -67,8 +67,10 @@ int Processing::run() {
         }
         last_proc_call = now;
         const double t = ++framenum * cfg.processing_interval;
+        if(!cfg.realtime && (framenum & print_progress_mask) == 0) std::cout << "\r" << t << "      " << std::flush;
 
         camera_.read_events(events_, now);
+        
 
         //starts assembying pseudoframe
         if( t < cfg.analysis_start - cfg.pseudoframe_length)
@@ -96,8 +98,6 @@ int Processing::run() {
             continue;
 
         process_frame(framenum);
-        
-        if(!cfg.realtime && (framenum & print_progress_mask) == 0) std::cout << "\r" << t << "      " << std::flush;
 
         if (now - last_save >= save_interval_us && (t > cfg.saving_start && t < cfg.saving_end)) {
             if (cfg.realtime && now - last_save > 2 * save_interval_us)

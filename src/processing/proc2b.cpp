@@ -12,8 +12,9 @@
 
 #define PROC2_DRAW
 
-Proc2b::Proc2b(EventSource& source, Config cfg) : Processing(source,cfg), output_file("data/proc2out.csv") {
-    
+Proc2b::Proc2b(EventSource& source, Config cfg) : Processing(source,cfg), 
+    output_file("data/proc2out.csv"),
+    output_file_2("data/proc2out2.csv") {
 }
 
 #define OVERLAYSCALING 1
@@ -37,6 +38,7 @@ void Proc2b::on_setup() {
 
 void Proc2b::on_termination() {
     output_file.close();
+    output_file_2.close();
 }
 
 
@@ -117,7 +119,7 @@ void Proc2b::init(float t){
         for(int j = 0; j < Proc2cfg::blocks_n_y; j++){
             //blocks.push_back( {Proc2cfg::blocks_x0 + i * Proc2cfg::blocks_spacing_x,Proc2cfg::blocks_y0 + j * Proc2cfg::blocks_spacing_y,Proc2cfg::blocks_w,Proc2cfg::blocks_h });
             blocks.push_back( {
-                width - Proc2cfg::blocks_dist_from_border - Proc2cfg::blocks_w - i * Proc2cfg::blocks_spacing_x,
+                Proc2cfg::blocks_x1 - (i+1) * Proc2cfg::blocks_spacing_x,
                 Proc2cfg::blocks_y0 + j * Proc2cfg::blocks_spacing_y,
                 Proc2cfg::blocks_w,Proc2cfg::blocks_h });
             }
@@ -161,7 +163,8 @@ float Proc2b::update_blocks_position(int maxoffset){
 */
 float Proc2b::update_DIC_refereces(float){
     reference_frame = processed_frame;
-        
+    output_file_2 << "U";
+    
     //no blocks
     if(blocks.size() == 0)
         return -1.;
@@ -245,6 +248,8 @@ float Proc2b::update_DIC_refereces(float){
 float Proc2b::find_specimen_body(float t){
     if( blocks.size() == 0)
         return -1.;
+
+    output_file_2 << "\n" << t << ",S";
     
     float current_avg = 0;
     for(Block b : blocks ) current_avg += b.y0 + 0.5 * b.h;
@@ -261,6 +266,7 @@ float Proc2b::find_specimen_body(float t){
     if( new_avg - current_avg > Proc2cfg::max_displacement_before_DIC_ref_update){
         ref_frame_last_save = t;
         update_DIC_refereces(new_avg);
+
     }
 
     //TODO: finish
@@ -370,8 +376,6 @@ void Proc2b::process_frame(unsigned framenum){
     
         find_specimen_body(t);
         last_specimen_body_search_t = t;
-
-        
     }
 
     double crack = find_crack();
