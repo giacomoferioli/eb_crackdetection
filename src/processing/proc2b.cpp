@@ -50,7 +50,7 @@ void Proc2b::procFrame(){
     const BasicFrame<std::int16_t>& raw_pixels = get_raw_frame();
     std::copy(raw_pixels.begin(), raw_pixels.end(), raw_frame.begin());
     
-    int c = 0;
+    [[maybe_unused]] int c = 0;
     for(int j = 1; j < height - 1; j++){
         for(int i = 1; i < width - 1; i++){
             float avg = (float)(abs(raw_frame(i - 1, j)) + abs(raw_frame(i + 1, j)) + abs(raw_frame(i, j - 1)) + abs(raw_frame(i, j + 1)))/4;
