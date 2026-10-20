@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include "datatypes.hpp"
@@ -13,23 +15,31 @@ namespace FrameCfg {
 } 
 
 
-class Frame {
-public:
-    Frame() = default;
+template<typename T>
+class BasicFrame {
+    static_assert(
+        std::is_arithmetic_v<T> &&
+        !std::is_same_v<T,bool>,
+        "BasicFrame requires a non-boolean arithmetic type"
+    );
 
-    Frame(int width, int height, float initial_value = 0.0F) {
+
+public:
+    BasicFrame() = default;
+
+    BasicFrame(int width, int height, T initial_value = T{}) {
         reset(width, height, initial_value);
     }
 
-    Frame(int width, int height, std::vector<float> pixels)
+    BasicFrame(int width, int height, std::vector<T> pixels)
         : width_(width), height_(height), pixels_(std::move(pixels)) {
         validate_dimensions(width_, height_);
         if (pixels_.size() != pixel_count()) {
-            throw std::invalid_argument("Frame pixel count does not match its dimensions");
+            throw std::invalid_argument("BasicFrame pixel count does not match its dimensions");
         }
     }
 
-    void reset(int width, int height, float initial_value = 0.0F) {
+    void reset(int width, int height, T initial_value = T{}) {
         validate_dimensions(width, height);
         width_ = width;
         height_ = height;
@@ -41,44 +51,38 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return pixels_.size(); }
     [[nodiscard]] bool empty() const noexcept { return pixels_.empty(); }
 
-    float& operator()(int x, int y) noexcept {
+    T& operator()(int x, int y) noexcept {
         return pixels_[index(x, y)];
     }
 
-    const float& operator()(int x, int y) const noexcept {
+    const T& operator()(int x, int y) const noexcept {
         return pixels_[index(x, y)];
     }
 
-    float& operator[](std::size_t index) noexcept { return pixels_[index]; }
-    const float& operator[](std::size_t index) const noexcept { return pixels_[index]; }
+    T& operator[](std::size_t index) noexcept { return pixels_[index]; }
+    const T& operator[](std::size_t index) const noexcept { return pixels_[index]; }
 
-    float& at(int x, int y) {
+    T& at(int x, int y) {
         check_coordinates(x, y);
         return pixels_.at(index(x, y));
     }
 
-    const float& at(int x, int y) const {
+    const T& at(int x, int y) const {
         check_coordinates(x, y);
         return pixels_.at(index(x, y));
     }
 
-    void fill(float value) {
+    void fill(T value) {
         std::fill(pixels_.begin(), pixels_.end(), value);
     }
 
-    float* data() noexcept { return pixels_.data(); }
-    const float* data() const noexcept { return pixels_.data(); }
+    T* data() noexcept { return pixels_.data(); }
+    const T* data() const noexcept { return pixels_.data(); }
 
     auto begin() noexcept { return pixels_.begin(); }
     auto end() noexcept { return pixels_.end(); }
     auto begin() const noexcept { return pixels_.begin(); }
     auto end() const noexcept { return pixels_.end(); }
-
-    // Math function
-
-    Line find_hline(int x0,int y0, int w, int h,Line::Type type = Line::Type::ANY) const;
-
-    //
 
 private:
     [[nodiscard]] std::size_t pixel_count() const noexcept {
@@ -92,17 +96,24 @@ private:
 
     static void validate_dimensions(int width, int height) {
         if (width < 0 || height < 0) {
-            throw std::invalid_argument("Frame dimensions cannot be negative");
+            throw std::invalid_argument("BasicFrame dimensions cannot be negative");
         }
     }
 
     void check_coordinates(int x, int y) const {
         if (x < 0 || x >= width_ || y < 0 || y >= height_) {
-            throw std::out_of_range("Frame coordinates are out of bounds");
+            throw std::out_of_range("BasicFrame coordinates are out of bounds");
         }
     }
 
     int width_ = 0;
     int height_ = 0;
-    std::vector<float> pixels_;
+    std::vector<T> pixels_;
+};
+
+class Frame : public BasicFrame<float> {
+public:
+    using BasicFrame<float>::BasicFrame;
+
+    Line find_hline(int x0,int y0, int w, int h,Line::Type type = Line::Type::ANY) const;
 };

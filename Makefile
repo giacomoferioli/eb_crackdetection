@@ -8,9 +8,9 @@ SOURCES := $(shell find $(SRC_DIR) -name '*.cpp')
 OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 DEPS := $(OBJECTS:.o=.d)
 
-CPPFLAGS := -Iinclude $(shell pkg-config --cflags sdl2 opencv4)
+CPPFLAGS := -Iinclude $(shell pkg-config --cflags opencv4)
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wpedantic
-LDFLAGS := $(shell pkg-config --libs sdl2 opencv4)
+LDFLAGS := $(shell pkg-config --libs opencv4)
 
 # OpenEB is optional so the project remains buildable before the camera SDK is
 # installed. It is enabled automatically when its camera header is found; use

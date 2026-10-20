@@ -35,6 +35,7 @@ class CircularBuffer {
 
     bool empty() const { return cnt == 0; }
     int count() const { return cnt; }
+    void clear() { start = stop = cnt = 0; }
 
     private:
         void grow(){

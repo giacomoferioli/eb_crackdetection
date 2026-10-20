@@ -1,4 +1,4 @@
-#include "processing/proc2b.hpp"
+#include "img_processing/proc2b.hpp"
 #include "image_saver.hpp"
 
 #include <algorithm>
@@ -12,7 +12,7 @@
 
 #define PROC2_DRAW
 
-Proc2b::Proc2b(EventSource& source, Config cfg) : Processing(source,cfg), 
+Proc2b::Proc2b(Config cfg) : FrameProcessor(cfg),
     output_file("data/proc2out.csv"),
     output_file_2("data/proc2out2.csv") {
 }
@@ -47,7 +47,7 @@ void Proc2b::procFrame(){
     //gaussian blur
     //kills hot pixels
     Frame raw_frame(width, height);
-    const std::vector<std::int16_t>& raw_pixels = get_raw_frame();
+    const BasicFrame<std::int16_t>& raw_pixels = get_raw_frame();
     std::copy(raw_pixels.begin(), raw_pixels.end(), raw_frame.begin());
     
     int c = 0;
@@ -359,14 +359,14 @@ float Proc2b::find_crack(){
     return static_cast<float>(crack_x);
 }
 
-void Proc2b::process_frame(unsigned framenum){
+ProcessResult Proc2b::process_frame(unsigned framenum){
     float t = framenum * cfg.processing_interval;
     overlay_frame.fill(0.0F);
     //load the first frame as reference
-    //this assumes that analysis start is high enough that a fully formed pseudoframe is already formed
+    //this assumes that processing start is high enough that a fully formed pseudoframe is already formed
     if(reference_frame.empty()) {
         init(t);
-        return;
+        return ProcessResult::OK;
     }
     
     procFrame();
@@ -396,4 +396,5 @@ void Proc2b::process_frame(unsigned framenum){
         for(int j = 0; j < height; j++)
             overlay_frame(top_block(uncracked_specimen).x,j) = 0.3;
     #endif
+    return ProcessResult::OK;
 }

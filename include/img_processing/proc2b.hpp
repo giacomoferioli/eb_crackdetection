@@ -1,7 +1,5 @@
 #pragma once
-#include "frame.hpp"
 #include "processing/processing.hpp"
-#include <cstdint>
 
 #include <fstream>
 #include <vector>
@@ -65,15 +63,15 @@ struct Block{
     int ref_center_y() { return y0 + h/2;}
 };
 
-class Proc2b : public Processing{
+class Proc2b : public FrameProcessor{
     public:
-    Proc2b(EventSource& source, Config cfg);
+    explicit Proc2b(Config cfg);
     
     protected:
 
     void on_setup() override;
     void on_termination() override;
-    void process_frame(unsigned framenum) override;
+    ProcessResult process_frame(unsigned framenum) override;
 
     private:
 

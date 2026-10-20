@@ -1,4 +1,4 @@
-#include "processing/proc2.hpp"
+#include "img_processing/proc2.hpp"
 #include "image_saver.hpp"
 
 #include <algorithm>
@@ -12,7 +12,7 @@
 
 #define PROC2_DRAW
 
-Proc2::Proc2(EventSource& source, Config cfg) : Processing(source,cfg), output_file("data/proc2out.csv") {
+Proc2::Proc2(Config cfg) : FrameProcessor(cfg), output_file("data/proc2out.csv") {
     
 }
 
@@ -44,7 +44,7 @@ void Proc2::procFrame(){
     std::fill(procframe.begin(),procframe.end(),0);
     //gaussian blur
     //kills hot pixels
-    std::vector<std::int16_t> rawframe = get_raw_frame();
+    BasicFrame<std::int16_t> rawframe = get_raw_frame();
     
     int c = 0;
     for(int j = 1; j < height - 1; j++){
@@ -325,14 +325,14 @@ float Proc2::find_crack(){
     return 0;
 }
 
-void Proc2::process_frame(unsigned framenum){
+ProcessResult Proc2::process_frame(unsigned framenum){
     float t = framenum * cfg.processing_interval;
     std::fill(frame.begin(), frame.end(), 0);
     //load the first frame as reference
-    //this assumes that analysis start is high enough that a fully formed pseudoframe is already formed
+    //this assumes that processing start is high enough that a fully formed pseudoframe is already formed
     if( ref_raw_frame.size() == 0){
         init(t);
-        return;
+        return ProcessResult::OK;
     }
     
     procFrame();
@@ -355,4 +355,5 @@ void Proc2::process_frame(unsigned framenum){
             for(int j = 0; j < b.h; j++)
                 pix(b.x +i,b.y+j) += a;
     #endif
+    return ProcessResult::OK;
 }

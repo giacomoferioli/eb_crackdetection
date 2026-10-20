@@ -1,4 +1,4 @@
-#include "frame.hpp"
+#include "img_processing/frame.hpp"
 #include "datatypes.hpp"
 
 #include <iostream>
@@ -6,8 +6,8 @@
 
 //decentemente controllato
 Line Frame::find_hline(int x0, int y0, int w, int h,Line::Type type) const{
-    if( x0 < FrameCfg::line_search_semi_interval || x0 + w > width_ - FrameCfg::line_search_semi_interval ||
-        y0 < 1 || y0 + h > height_ - 1 ||
+    if( x0 < FrameCfg::line_search_semi_interval || x0 + w > width() - FrameCfg::line_search_semi_interval ||
+        y0 < 1 || y0 + h > height() - 1 ||
         w < 3 || h < 3){
             std::cout << "find_hline bad input" << std::endl;
             return {{0,0},0,Line::ANY};

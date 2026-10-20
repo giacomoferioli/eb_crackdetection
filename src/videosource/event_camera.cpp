@@ -295,7 +295,7 @@ public:
 EventCamera::EventCamera(std::size_t event_capacity): impl_(std::make_unique<Impl>(event_capacity)) {
     open_first();
     //TODO:: make config, codex don't you touch this
-    load_settings("data/camera_settings.json");
+    load_settings("config/camera_settings.json");
     set_roi_coordinates_local(true);
     start();
     

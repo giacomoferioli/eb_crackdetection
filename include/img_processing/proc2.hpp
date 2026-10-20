@@ -34,15 +34,15 @@ struct Block{
     Block(int x0, int y0, int w, int h, int x,int y) : x0(x0), y0(y0), w(w), h(h), x(x), y(y) {};
 };
 
-class Proc2 : public Processing{
+class Proc2 : public FrameProcessor{
     public:
-    Proc2(EventSource& source, Config cfg);
+    explicit Proc2(Config cfg);
     
     protected:
 
     void on_setup() override;
     void on_termination() override;
-    void process_frame(unsigned framenum) override;
+    ProcessResult process_frame(unsigned framenum) override;
 
     private:
 
