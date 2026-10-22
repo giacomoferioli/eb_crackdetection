@@ -36,9 +36,11 @@ public:
     // been received since the camera was opened.
     std::atomic<std::int64_t> last_rising_trigger_timestamp_us{-1};
 
-    // The default ring stores roughly four million events (64 MiB). Storage is
-    // allocated only when a camera is opened.
-    explicit EventCamera(std::size_t event_capacity = 1U << 22U);
+    // [R] The default ring stores roughly four million events (64 MiB). Storage
+    // is allocated only when a camera is opened. Recording starts separately so
+    // the live console can control it without stopping the camera stream.
+    explicit EventCamera(const std::string& camera_config_path,
+                         std::size_t event_capacity = 1U << 22U);
     ~EventCamera();
 
     EventCamera(const EventCamera&) = delete;
@@ -50,6 +52,10 @@ public:
     void close();
     bool start();
     void stop() override;
+    // [R] These calls control native EVT3 recording independently of acquisition.
+    bool start_recording(const std::string& raw_save_path);
+    bool stop_recording();
+    bool is_recording() const noexcept;
 
     bool is_open() const;
     bool is_running() const override;

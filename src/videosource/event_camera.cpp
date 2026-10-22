@@ -279,6 +279,9 @@ public:
     std::atomic<std::uint64_t> dropped_triggers_{0};
     std::atomic<bool> trigger_input_enabled_{false};
     std::atomic<bool> running_{false};
+    // [R] Recording state and its exact OpenEB output path are guarded by control_mutex_.
+    std::atomic<bool> recording_{false};
+    std::filesystem::path recording_path_;
     std::atomic<bool> local_roi_coordinates_{false};
     std::atomic<bool> roi_enabled_{false};
     std::atomic<int> roi_x_{0};
@@ -292,13 +295,19 @@ public:
     mutable std::string error_;
 };
 
-EventCamera::EventCamera(std::size_t event_capacity): impl_(std::make_unique<Impl>(event_capacity)) {
-    open_first();
-    //TODO:: make config, codex don't you touch this
-    load_settings("config/camera_settings.json");
+EventCamera::EventCamera(const std::string& camera_config_path,
+                         std::size_t event_capacity):
+    impl_(std::make_unique<Impl>(event_capacity)) {
+    if(!open_first())
+        return;
+    if(!load_settings(camera_config_path)){
+        close();
+        return;
+    }
     set_roi_coordinates_local(true);
-    start();
-    
+    // [R] Acquisition starts immediately; RAW recording waits for a console command.
+    if(!start())
+        return;
 }
 
 EventCamera::~EventCamera() { 
@@ -435,16 +444,119 @@ bool EventCamera::start() {
 
 void EventCamera::stop() {
 #if defined(HAVE_OPENEB)
-    try {
+    std::string stop_error;
+    {
         std::lock_guard<std::mutex> lock(impl_->control_mutex_);
-        if (impl_->camera_ && impl_->running_.load(std::memory_order_acquire)) {
-            impl_->camera_->stop();
+        // [R] Flush and close an active RAW file before stopping its event source.
+        if (impl_->camera_ && impl_->recording_.load(std::memory_order_acquire)) {
+            try {
+                if (!impl_->camera_->stop_recording(impl_->recording_path_))
+                    stop_error = "OpenEB could not stop EVT3 recording";
+            } catch (const std::exception& exception) {
+                stop_error = exception.what();
+            }
+            impl_->recording_.store(false, std::memory_order_release);
+            impl_->recording_path_.clear();
         }
-    } catch (const std::exception& exception) {
-        impl_->set_error(exception.what());
+        if (impl_->camera_ && impl_->running_.load(std::memory_order_acquire)) {
+            try {
+                if (!impl_->camera_->stop() && stop_error.empty())
+                    stop_error = "OpenEB could not stop the camera stream";
+            } catch (const std::exception& exception) {
+                if(stop_error.empty())
+                    stop_error = exception.what();
+            }
+        }
     }
+    if(!stop_error.empty())
+        impl_->set_error(std::move(stop_error));
 #endif
     impl_->running_.store(false, std::memory_order_release);
+}
+
+bool EventCamera::start_recording(const std::string& raw_save_path) {
+#if defined(HAVE_OPENEB)
+    // [R] Reject paths OpenEB cannot use as the requested native EVT3 output.
+    if(raw_save_path.empty()){
+        impl_->set_error("EVT3 recording path is empty");
+        return false;
+    }
+
+    const std::filesystem::path output_path(raw_save_path);
+    if(output_path.extension() != ".raw"){
+        impl_->set_error("EVT3 recording path must end in .raw");
+        return false;
+    }
+
+    try {
+        if(output_path.has_parent_path())
+            std::filesystem::create_directories(output_path.parent_path());
+
+        std::lock_guard<std::mutex> lock(impl_->control_mutex_);
+        if(!impl_->camera_ || !impl_->running_.load(std::memory_order_acquire)){
+            impl_->set_error("Cannot record because the event camera is not running");
+            return false;
+        }
+        if(impl_->recording_.load(std::memory_order_acquire)){
+            impl_->set_error("The event camera is already recording");
+            return false;
+        }
+
+        // [R] The project promises EVT3 files, so do not silently record another encoding.
+        const std::string& encoding = impl_->camera_->get_camera_configuration().data_encoding_format;
+        if(encoding.find("EVT3") == std::string::npos){
+            impl_->set_error("Camera native encoding is " + encoding + ", not EVT3");
+            return false;
+        }
+        if(!impl_->camera_->start_recording(output_path)){
+            impl_->set_error("OpenEB could not start EVT3 recording at " + output_path.string());
+            return false;
+        }
+
+        impl_->recording_path_ = output_path;
+        impl_->recording_.store(true, std::memory_order_release);
+        impl_->clear_error();
+        return true;
+    } catch(const std::exception& exception) {
+        impl_->set_error(exception.what());
+        return false;
+    }
+#else
+    static_cast<void>(raw_save_path);
+    impl_->set_error("OpenEB support is not enabled in this build");
+    return false;
+#endif
+}
+
+bool EventCamera::stop_recording() {
+#if defined(HAVE_OPENEB)
+    try {
+        std::lock_guard<std::mutex> lock(impl_->control_mutex_);
+        // [R] Stopping an already stopped recorder is intentionally harmless.
+        if(!impl_->camera_ || !impl_->recording_.load(std::memory_order_acquire))
+            return true;
+
+        if(!impl_->camera_->stop_recording(impl_->recording_path_)){
+            impl_->set_error("OpenEB could not stop EVT3 recording");
+            return false;
+        }
+
+        impl_->recording_.store(false, std::memory_order_release);
+        impl_->recording_path_.clear();
+        impl_->clear_error();
+        return true;
+    } catch(const std::exception& exception) {
+        impl_->set_error(exception.what());
+        return false;
+    }
+#else
+    impl_->set_error("OpenEB support is not enabled in this build");
+    return false;
+#endif
+}
+
+bool EventCamera::is_recording() const noexcept {
+    return impl_->recording_.load(std::memory_order_acquire);
 }
 
 bool EventCamera::is_open() const {

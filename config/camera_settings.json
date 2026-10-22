@@ -361,7 +361,7 @@
    },
    {
     "name": "bias_diff_off",
-    "value": 17
+    "value": 0
    },
    {
     "name": "bias_diff_on",
@@ -369,7 +369,7 @@
    },
    {
     "name": "bias_fo",
-    "value": 0
+    "value": -20
    },
    {
     "name": "bias_hpf",
@@ -392,14 +392,14 @@
   ],
   "columns": [],
   "rows": [],
-  "enabled": true,
+  "enabled": false,
   "mode": "ROI"
  },
  "trigger_in_state": {
   "channel_status": [
    {
     "channel": "MAIN",
-    "enabled": true
+    "enabled": false
    }
   ]
  }

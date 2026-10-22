@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -12,7 +11,35 @@
 namespace FrameCfg {
     constexpr int line_search_semi_interval = 3;
     // [HC] = 3, constexpr int line_thickness = 3;
-} 
+}
+
+namespace HLineRiderCfg {
+    constexpr int horizontal_step = 5;
+    constexpr int search_radius = 3;
+    constexpr int noise_sample_radius = 6;
+    constexpr int beam_width = 3;
+    constexpr int maximum_gap_steps = 3;
+
+    constexpr float max_abs_slope = 0.4F;
+    constexpr float slope_update_weight = 0.35F;
+    constexpr float slope_change_penalty = 1.5F;
+    constexpr float position_penalty = 0.25F;
+    constexpr float gap_penalty = 1.0F;
+    constexpr float minimum_noise_scale = 0.25F;
+    constexpr float minimum_confidence = 2.0F;
+}
+
+enum class HLineDirection {
+    LEFT = -1,
+    RIGHT = 1
+};
+
+struct HLineRide {
+    std::vector<Point> points;
+    Point endpoint{0.0F,0.0F};
+    Line::Type type = Line::Type::INVALID;
+    float confidence = 0.0F;
+};
 
 
 template<typename T>
@@ -115,5 +142,7 @@ class Frame : public BasicFrame<float> {
 public:
     using BasicFrame<float>::BasicFrame;
 
-    Line find_hline(int x0,int y0, int w, int h,Line::Type type = Line::Type::ANY) const;
+    Line find_hline(int x0,int y0, int w, int h,Line::Type type = Line::Type::ANY);
+    std::vector<Line> find_hlines(int x0,int y0, int w, int h,size_t num, Line::Type type = Line::Type::ANY);
+    HLineRide ride_hline(Point start, HLineDirection direction, Line::Type type = Line::Type::ANY) const;
 };

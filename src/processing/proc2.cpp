@@ -46,7 +46,7 @@ void Proc2::procFrame(){
     //kills hot pixels
     BasicFrame<std::int16_t> rawframe = get_raw_frame();
     
-    int c = 0;
+    [[maybe_unused]]int c = 0;
     for(int j = 1; j < height - 1; j++){
         const int offset = j * width;
         for(int i = 1; i < width - 1; i++){

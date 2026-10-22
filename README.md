@@ -107,9 +107,10 @@ slow. Events arriving when the ring is full are dropped and counted by
 - external-trigger buffering and the latest rising-trigger timestamp;
 - error reporting through `last_error()`.
 
-The current constructor opens the first camera, loads
-`config/camera_settings.json`, enables local ROI coordinates, and starts the
-camera.
+The constructor opens the first camera, loads the configured OpenEB camera
+settings, enables local ROI coordinates, and starts the camera. EVT3 recording
+is started and stopped separately by the live console and is flushed before
+the camera stops.
 
 ## Pseudo-frame orchestration
 
@@ -121,6 +122,8 @@ camera.
 | Field | Meaning |
 |---|---|
 | `realtime` | Reproduce and enforce real event timing when true. |
+| `camera_config_path` | OpenEB camera-settings JSON loaded for live capture. |
+| `raw_save_path` | `.raw` file receiving the live camera's EVT3 stream. |
 | `save_interval` | Seconds between saved images. |
 | `max_event_rate` | Expected maximum events per second, used for buffer sizing. |
 | `pseudoframe_length` | Duration of the sliding event window in seconds. |
@@ -362,6 +365,37 @@ Processing application(playback, config);
 application.add_processor(std::make_unique<Proc2b>(config));
 return application.run();
 ```
+
+For live capture with the interactive console:
+
+```cpp
+Config config = load_config("config/config.cfg");
+EventCamera camera(config.camera_config_path);
+
+Processing application(camera, config);
+application.add_processor(std::make_unique<SpecimenFinder>(config));
+return application.run_console(camera);
+```
+
+The console uses these two-digit commands:
+
+| Command | Action |
+|---|---|
+| `00` | Print current state. |
+| `10` / `11` | Start / stop EVT3 recording. |
+| `20` / `21` | Start / stop pseudoframe assembly and saving. |
+| `30` | Start processing immediately (and start pseudoframes if needed). |
+| `31` | Stop processing and processor-image saving. |
+| `32` | Start processing after one complete pseudoframe window. |
+| `40` / `41` | Start / stop a test (RAW recording plus delayed processing). |
+| `99` | Close the console and camera. |
+
+Existing RAW files are not overwritten: a numeric suffix is added to the
+configured `raw_save_path` when necessary.
+Starting pseudoframe saving clears `images/`; starting processing clears
+`proc_images/`; starting a test clears both directories.
+The complete state transitions and edge cases are documented in
+[`docs/camera_console.md`](docs/camera_console.md).
 
 For a multi-phase test:
 

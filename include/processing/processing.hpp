@@ -10,16 +10,23 @@
 #include <string>
 #include <vector>
 
+class EventCamera;
 
 
 struct Config {
     bool realtime;
+    std::string camera_config_path;
+    std::string raw_save_path;
     double save_interval;
     int max_event_rate;
     double pseudoframe_length;
     double processing_interval;
     double saving_start, saving_end;
     double processing_start, processing_end;
+
+    double camera_distance;
+    float pixels_per_mm;
+    float displacement_rate;
 };
 
 enum class ProcessResult {
@@ -75,6 +82,8 @@ public:
 
     void add_processor(std::unique_ptr<FrameProcessor> processor);
     int run();
+    // [R] Interactive live-camera loop; unlike run(), its windows are controlled from stdin.
+    int run_console(EventCamera& camera);
 
 private:
     void setup_current_processor();
