@@ -1,4 +1,4 @@
-#include "img_processing/autodistance.hpp"
+#include "processors/autodistance.hpp"
 
 
 AutoDistance::AutoDistance(Config cfg) : FrameProcessor(cfg), output_file("data/autodistout.csv") {

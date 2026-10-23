@@ -10,17 +10,6 @@
 #include <limits>
 #include <vector>
 
-namespace {
-
-template<typename Value>
-struct Entry {
-    int ix;
-    Value val;
-
-    bool operator>(const Entry& rhs) const { return val > rhs.val; }
-};
-
-} // namespace
 
 //decentemente controllato
 Line Frame::find_hline(int x0, int y0, int w, int h,Line::Type type) {
@@ -87,6 +76,150 @@ Line Frame::find_hline(int x0, int y0, int w, int h,Line::Type type) {
     return {{avg_x,avg_y},m, type, strength};
 }
 
+std::optional<SpecimenPositionInfo> Frame::find_specimen(
+    const SpecimenSearchParameters& parameters,
+    Frame* diagnostic_overlay) {
+    std::vector<SpecimenPositionInfo> candidates;
+
+    // [R] Spread the requested number of columns between search_start_x and the right edge.
+    const int search_column_spacing =
+        (width() - parameters.search_start_x) / parameters.number_of_search_columns;
+    const float maximum_slope =
+        std::tan(parameters.maximum_tilt_degrees * 0.01745F);
+    const int vertical_search_interval = parameters.expected_thickness / 3;
+
+    for(int x = parameters.search_start_x + search_column_spacing / 2;
+        x < width();
+        x += search_column_spacing) {
+        BestN<Line> blacklines(2);
+        std::optional<Line> selected_whiteline;
+
+        // [R] Only look for the black and white specimen outlines inside the requested y interval.
+        for(int y = parameters.line_search_start_y;
+            y < parameters.line_search_end_y - vertical_search_interval;
+            y += vertical_search_interval) {
+            const Line blackline = find_hline(
+                x - parameters.search_column_width / 2,
+                y,
+                parameters.search_column_width,
+                vertical_search_interval,
+                Line::BLACK);
+            const Line whiteline = find_hline(
+                x - parameters.search_column_width / 2,
+                y,
+                parameters.search_column_width,
+                vertical_search_interval,
+                Line::WHITE);
+
+            if(blackline &&
+               blackline.strength > 0.5F * parameters.search_column_width &&
+               std::abs(blackline.m) < maximum_slope)
+                blacklines.insert(blackline);
+
+            if(whiteline &&
+               whiteline.strength > 0.5F * parameters.search_column_width &&
+               std::abs(whiteline.m) < maximum_slope) {
+                bool found = false;
+                for(const Line& candidate_blackline : blacklines) {
+                    const float reference_x =
+                        0.5F * (candidate_blackline.p.x + whiteline.p.x);
+                    const float thickness =
+                        whiteline.eval(reference_x) -
+                        candidate_blackline.eval(reference_x);
+                    if(std::abs(whiteline.m - candidate_blackline.m) <
+                           SpecimenPositionInfo::maximum_slope_difference &&
+                       thickness > 0.9F * parameters.expected_thickness &&
+                       thickness < 1.1F * parameters.expected_thickness) {
+                        Line top = candidate_blackline;
+                        top.p = {reference_x, candidate_blackline.eval(reference_x)};
+                        candidates.push_back({top, thickness});
+                        selected_whiteline = whiteline;
+                        found = true;
+                        break;
+                    }
+                }
+                if(found)
+                    break;
+            }
+        }
+
+        if(diagnostic_overlay != nullptr) {
+            for(const Line& line : blacklines)
+                for(int dx = -parameters.search_column_width / 2;
+                    dx < parameters.search_column_width / 2;
+                    dx++)
+                    (*diagnostic_overlay)(
+                        static_cast<int>(line.p.x) + dx,
+                        static_cast<int>(line.eval(line.p.x + dx))) = 1.0F;
+
+            if(selected_whiteline)
+                for(int dx = -parameters.search_column_width / 2;
+                    dx < parameters.search_column_width / 2;
+                    dx++)
+                    (*diagnostic_overlay)(
+                        static_cast<int>(selected_whiteline->p.x) + dx,
+                        static_cast<int>(selected_whiteline->eval(
+                            selected_whiteline->p.x + dx))) = 1.0F;
+        }
+    }
+
+    std::optional<SpecimenPositionInfo> best_guess =
+        select_best_guess<SpecimenPositionInfo>(
+            candidates,
+            parameters.minimum_agreeing_guesses,
+            parameters.maximum_disagreeing_guesses,
+            [](const std::vector<SpecimenPositionInfo>& values) {
+                SpecimenPositionInfo result = values.front();
+                float average_x = 0.0F;
+                float average_y = 0.0F;
+                float average_thickness = 0.0F;
+                float average_strength = 0.0F;
+                float average_local_slope = 0.0F;
+
+                for(const SpecimenPositionInfo& value : values) {
+                    average_x += value.top.p.x;
+                    average_y += value.top.p.y;
+                    average_thickness += value.thickness;
+                    average_strength += value.top.strength;
+                    average_local_slope += value.top.m;
+                }
+                const float count = static_cast<float>(values.size());
+                average_x /= count;
+                average_y /= count;
+                average_thickness /= count;
+                average_strength /= count;
+                average_local_slope /= count;
+
+                float xy_deviation = 0.0F;
+                float squared_x_deviation = 0.0F;
+                for(const SpecimenPositionInfo& value : values) {
+                    xy_deviation +=
+                        (value.top.p.x - average_x) *
+                        (value.top.p.y - average_y);
+                    squared_x_deviation +=
+                        (value.top.p.x - average_x) *
+                        (value.top.p.x - average_x);
+                }
+
+                const float slope = squared_x_deviation > 0.0F
+                    ? xy_deviation / squared_x_deviation
+                    : average_local_slope;
+                result.top = {
+                    {average_x, average_y},
+                    slope,
+                    Line::BLACK,
+                    average_strength};
+                result.thickness = average_thickness;
+                result.crackpos = 0.0F;
+                return result;
+            });
+
+    if(best_guess && std::abs(best_guess->top.m) <= maximum_slope)
+        return best_guess;
+
+    return std::nullopt;
+}
+
 std::vector<Line> Frame::find_hlines(int x0, int y0, int w, int h,size_t num,Line::Type type) {
     if( x0 < FrameCfg::line_search_semi_interval || x0 + w > width() - FrameCfg::line_search_semi_interval ||
         y0 < 1 || y0 + h >= height() ||
@@ -120,7 +253,7 @@ std::vector<Line> Frame::find_hlines(int x0, int y0, int w, int h,size_t num,Lin
     //reuses scores(dx,0) to store the point with top y
     for(int dx = 0; dx < w; dx++){
         
-        BestN<Entry<float>> best(num);
+        BestN<Entry<int,float>> best(num);
         for(int dy = 0; dy < h; dy ++){
             float score = scores(dx,dy) + scores(dx,dy+1) + scores(dx,dy+2);
             if ( type == Line::Type::BLACK )
@@ -129,10 +262,10 @@ std::vector<Line> Frame::find_hlines(int x0, int y0, int w, int h,size_t num,Lin
             bool insert = true;
             size_t replace_index = best.size();
             for(size_t i = 0; i < best.size(); i++){
-                const Entry<float>& e = best[i];
-                if(std::abs(e.ix - dy) <= 3){
+                const Entry<int,float>& e = best[i];
+                if(std::abs(e.data - dy) <= 3){
                     insert = false;
-                    if(score > e.val)
+                    if(score > e.score)
                         replace_index = i;
                     break;
                 }
@@ -146,7 +279,7 @@ std::vector<Line> Frame::find_hlines(int x0, int y0, int w, int h,size_t num,Lin
         }
 
         for(size_t j = 0; j < best.size(); j++)
-            candidates.push_back({(float)dx,(float)best[j].ix});
+            candidates.push_back(LinePoint{{(float)dx,(float)best[j].data}});
     }
 
     /* 

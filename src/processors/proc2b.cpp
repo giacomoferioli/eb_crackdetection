@@ -1,4 +1,4 @@
-#include "img_processing/proc2b.hpp"
+#include "processors/proc2b.hpp"
 #include "image_saver.hpp"
 
 #include <algorithm>
@@ -77,7 +77,7 @@ void Proc2b::procFrame(){
 /*
     return the error between the square (x,y,w,h) in current frame and the square (x0,y0,w,h) in the reference frame
 */
-float Proc2b::correlate(int x, int y, Block block){
+float Proc2b::correlate(int x, int y, DicBlock block){
     if( x + block.w > width || block.x0 + block.w > width || y + block.h > height || block.y0 + block.h > height){
         std::cout << "[Proc2/correlate] invalid call " << x << " " << y << ", block: " << block.x0 << " " << block.y0 << " " << block.w << " " << block.h << std::endl;
         return INFINITY;  
@@ -94,7 +94,7 @@ float Proc2b::correlate(int x, int y, Block block){
     return R2;
 }
 
-float Proc2b::correlate(float x, float y, Block block){
+float Proc2b::correlate(float x, float y, DicBlock block){
     float R2 = 0;
     float tx = x - std::floor(x), ty = y - std::floor(y);
 
@@ -132,7 +132,7 @@ void Proc2b::init(float t){
 */
 float Proc2b::update_blocks_position(int maxoffset){
     float y_tot = 0;
-    for(Block& block : blocks) {
+    for(DicBlock& block : blocks) {
         float minscore = 1e10;
         int miny = 0;
         for(int y = block.y0; y < block.y0 + maxoffset; y++){
@@ -170,7 +170,7 @@ float Proc2b::update_DIC_refereces(float){
         return -1.;
     //the first few blocks are in the part of the speciment where the outline is not a line
     if(blocks.size() < 2 * Proc2cfg::specimen_autocenter_min_blocks ){
-        for(Block& b : blocks)
+        for(DicBlock& b : blocks)
             b.y0 = b.y;
         return -1.;
     }
@@ -252,7 +252,7 @@ float Proc2b::find_specimen_body(float t){
     output_file_2 << "\n" << t << ",S";
     
     float current_avg = 0;
-    for(Block b : blocks ) current_avg += b.y0 + 0.5 * b.h;
+    for(DicBlock b : blocks) current_avg += b.y0 + 0.5 * b.h;
     current_avg /= blocks.size();
     
     //[HC] 3
@@ -294,8 +294,8 @@ float Proc2b::find_crack(){
 
     for(int sample = 0; sample < sample_count; sample++){
         const size_t i = first_block + sample;
-        Block& top = top_block(i);
-        Block& bottom = btm_block(i);
+        DicBlock& top = top_block(i);
+        DicBlock& bottom = btm_block(i);
 
         Line top_bottom_line = processed_frame.find_hline(
             top.x,
@@ -385,7 +385,7 @@ ProcessResult Proc2b::process_frame(unsigned framenum){
     #ifdef PROC2_DRAW
     
     srand(0);
-    for( Block b : blocks){
+    for(DicBlock b : blocks){
         float a = .3 + .2 * rand() / RAND_MAX;
         for(int i = 0; i < b.w; i++)
             for(int j = 0; j < b.h; j++)    

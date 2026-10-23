@@ -299,9 +299,9 @@ It writes crack positions to `data/proc2out.csv`, tracking diagnostics to
 To use them as phases in a longer chain, add the phase-completion condition and
 return `DONE` when that condition is met.
 
-Both correlation processors use a `Block` structure to keep the reference and
-current position of a rectangular image region. `Proc2b` arranges these blocks
-as top/bottom pairs around the specimen.
+The correlation processors use the shared `DicBlock` type to keep the reference
+and current position of a rectangular image region. `DicFlapPair` groups the
+top and bottom blocks used around the specimen.
 
 ## Image and mathematical helpers
 
@@ -318,19 +318,24 @@ signed event counts without paying for floating-point storage.
 ### `Frame`
 
 `Frame` derives from `BasicFrame<float>` and inherits its constructors. It is
-the processed-image type and adds `find_hline()`. Keeping this operation on
-`Frame` prevents integer frames from exposing an algorithm whose scores and
-fitted output are inherently floating point.
+the processed-image type and adds `find_hline()` and `find_specimen()`. Keeping
+these operations on `Frame` prevents integer frames from exposing algorithms
+whose scores and fitted output are inherently floating point.
 
 `find_hline()` searches a rectangular area for a horizontal black or white
 event edge. It chooses a y-coordinate for every x-coordinate and fits a straight
 line through those points.
 
+`find_specimen()` searches multiple image columns for compatible black and
+white boundary lines and returns the consensus specimen position when enough
+columns agree.
+
 ### `Point` and `Line`
 
-These small structures, defined in `include/img_processing/geometry.hpp`, describe a point and
-a line. `Line::eval(x)` evaluates the fitted y-coordinate, and `Line::Type`
-records whether the line represents a white, black, or unrestricted edge.
+These small structures, defined in
+`include/img_processing/datatypes/geometry.hpp`, describe a point and a line.
+`Line::eval(x)` evaluates the fitted y-coordinate, and `Line::Type` records
+whether the line represents a white, black, or unrestricted edge.
 
 ### `ImageSaver`
 
@@ -483,8 +488,9 @@ post-processing, and curve-fitting utilities.
 include/videosource/       event-source interfaces
 src/videosource/           live camera and RAW playback implementations
 include/processing/        processor and orchestration interfaces
-src/processing/            processing loop and algorithms
-include/frame.hpp           generic frame storage and float image class
+include/processors/        concrete processor interfaces
+src/processors/            processing loop and concrete processors
+include/img_processing/    frame algorithms and processor-facing data types
 src/img_processing/        Frame image-processing operations
 include/image_saver.hpp     BMP/PNG output
 data/                       configuration, recordings, and CSV output

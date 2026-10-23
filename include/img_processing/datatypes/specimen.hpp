@@ -1,9 +1,22 @@
 #pragma once
 
-#include "img_processing/geometry.hpp"
+#include "img_processing/datatypes/geometry.hpp"
 
 #include <algorithm>
 #include <cmath>
+
+// [R] Search columns start at search_start_x; line search is limited to the given y interval.
+struct SpecimenSearchParameters {
+    int number_of_search_columns;
+    int search_column_width;
+    int search_start_x;
+    int line_search_start_y;
+    int line_search_end_y;
+    float maximum_tilt_degrees;
+    float expected_thickness;
+    unsigned minimum_agreeing_guesses;
+    unsigned maximum_disagreeing_guesses;
+};
 
 // Shared specimen geometry produced by one processor and consumable by later
 // processors. Equality means that two independent detections describe the same

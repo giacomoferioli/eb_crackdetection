@@ -1,9 +1,10 @@
 #pragma once
 
-#include "img_processing/geometry.hpp"
+#include "img_processing/datatypes/specimen.hpp"
 
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -145,5 +146,8 @@ public:
 
     Line find_hline(int x0,int y0, int w, int h,Line::Type type = Line::Type::ANY);
     std::vector<Line> find_hlines(int x0,int y0, int w, int h,size_t num, Line::Type type = Line::Type::ANY);
+    [[nodiscard]] std::optional<SpecimenPositionInfo> find_specimen(
+        const SpecimenSearchParameters& parameters,
+        Frame* diagnostic_overlay = nullptr);
     HLineRide ride_hline(Point start, HLineDirection direction, Line::Type type = Line::Type::ANY) const;
 };

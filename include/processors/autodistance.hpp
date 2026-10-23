@@ -4,7 +4,7 @@
 
 #include <fstream>
 
-class AutoDistance : public FrameProcessor{
+class AutoDistance : public FrameProcessor {
     public:
     explicit AutoDistance(Config cfg);
     

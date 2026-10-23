@@ -1,14 +1,11 @@
-#include "img_processing/specimenfinder.hpp"
+#include "processors/specimenfinder.hpp"
 
 #include "image_saver.hpp"
-#include "utils/best_n.hpp"
-#include "utils/grouping.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <optional>
-#include <vector>
 
 
 SpecimenFinder::SpecimenFinder(Config cfg) : FrameProcessor(cfg) {}
@@ -80,106 +77,29 @@ ProcessResult SpecimenFinder::process_frame(unsigned framenum){
     #if SF_DRAW
     overlay_frame.fill(0.0F);
     #endif 
-       
+    
     procFrame();
 
-    std::vector<SpecimenPositionInfo> candidates;
-
-    //we get some guesses
-    const int search_column_spacing = width / 2 / SFcfg::number_of_search_column;
-    const float max_m = std::tan(SFcfg::max_speciment_tilt * 0.01745);
-    const float expected_dist = cfg.pixels_per_mm * SFcfg::specimen_thickness;
-    const int vertical_search_interval = expected_dist / 3;
-
-    
-    for(int x = width / 2 + search_column_spacing / 2; x < width; x += search_column_spacing){
-        BestN<Line> blacklines(2);
-        std::optional<Line> selected_whiteline;
-
-        for(int y = 1; y < height / 2 - vertical_search_interval; y += vertical_search_interval){
-            const Line blackline = processed_frame.find_hline(x - SFcfg::search_column_width / 2, y, SFcfg::search_column_width, vertical_search_interval,Line::BLACK);
-            const Line whiteline = processed_frame.find_hline(x - SFcfg::search_column_width / 2, y, SFcfg::search_column_width, vertical_search_interval,Line::WHITE);
-
-            if(blackline && blackline.strength > 0.5F * SFcfg::search_column_width && std::abs(blackline.m) < max_m)
-                blacklines.insert(blackline);
-
-            if(whiteline && whiteline.strength > 0.5F * SFcfg::search_column_width && std::abs(whiteline.m) < max_m){
-                bool found = false;
-                for(const Line& bl : blacklines){
-                    const float refx = 0.5F * (bl.p.x + whiteline.p.x);
-                    const float thickness = whiteline.eval(refx) - bl.eval(refx);
-                    if(std::abs(whiteline.m - bl.m) < SpecimenPositionInfo::maximum_slope_difference &&
-                       thickness > 0.9F * expected_dist && thickness < 1.1F * expected_dist){
-                        Line top = bl;
-                        top.p = {refx,bl.eval(refx)};
-                        candidates.push_back({top,thickness});
-                        selected_whiteline = whiteline;
-                        found = true;
-                        break;
-                    }
-                }
-                if(found)
-                    break;
-            }
-                
-        }
-
-        //candidates.push_back(Guess{ blackline.p.x,blackline.p.y, whiteline.p.y - blackline.p.y});
-        #ifdef SF_DRAW
-        for(const Line& l : blacklines)
-            for(int dx = - SFcfg::search_column_width / 2; dx < SFcfg::search_column_width / 2; dx++)
-                overlay_frame(l.p.x+dx,l.eval(l.p.x+dx)) = 1;
-
-        if(selected_whiteline)
-            for(int dx = - SFcfg::search_column_width / 2; dx < SFcfg::search_column_width / 2; dx++)
-                overlay_frame(selected_whiteline->p.x+dx,selected_whiteline->eval(selected_whiteline->p.x+dx)) = 1;
-            
-        #endif
-    }
-
-    std::optional<SpecimenPositionInfo> best_guess = select_best_guess<SpecimenPositionInfo>(
-        candidates,
+    const SpecimenSearchParameters search_parameters{
+        SFcfg::number_of_search_column,
+        SFcfg::search_column_width,
+        width / 2,
+        1,
+        height / 2,
+        SFcfg::max_speciment_tilt,
+        cfg.pixels_per_mm * SFcfg::specimen_thickness,
         SFcfg::mininum_number_of_agreeing_guesses,
-        SFcfg::maximum_number_of_disagreeing_guesses,
-        [](const std::vector<SpecimenPositionInfo>& values){
-            SpecimenPositionInfo result = values.front();
-            float avg_x = 0.0F;
-            float avg_y = 0.0F;
-            float avg_thickness = 0.0F;
-            float avg_strength = 0.0F;
-            float avg_local_slope = 0.0F;
+        SFcfg::maximum_number_of_disagreeing_guesses};
 
-            for(const SpecimenPositionInfo& value : values){
-                avg_x += value.top.p.x;
-                avg_y += value.top.p.y;
-                avg_thickness += value.thickness;
-                avg_strength += value.top.strength;
-                avg_local_slope += value.top.m;
-            }
-            const float count = static_cast<float>(values.size());
-            avg_x /= count;
-            avg_y /= count;
-            avg_thickness /= count;
-            avg_strength /= count;
-            avg_local_slope /= count;
+    Frame* diagnostic_overlay = nullptr;
+    #if SF_DRAW
+    diagnostic_overlay = &overlay_frame;
+    #endif
 
-            float xy_deviation = 0.0F;
-            float squared_x_deviation = 0.0F;
-            for(const SpecimenPositionInfo& value : values){
-                xy_deviation += (value.top.p.x - avg_x) * (value.top.p.y - avg_y);
-                squared_x_deviation += (value.top.p.x - avg_x) * (value.top.p.x - avg_x);
-            }
+    std::optional<SpecimenPositionInfo> best_guess =
+        processed_frame.find_specimen(search_parameters, diagnostic_overlay);
 
-            const float slope = squared_x_deviation > 0.0F
-                ? xy_deviation / squared_x_deviation
-                : avg_local_slope;
-            result.top = {{avg_x,avg_y},slope,Line::BLACK,avg_strength};
-            result.thickness = avg_thickness;
-            result.crackpos = 0.0F;
-            return result;
-        });
-
-    if(!best_guess.has_value() || std::abs(best_guess->top.m) > max_m)
+    if(!best_guess)
         return ProcessResult::OK;
 
     // [R] Retain the newest successful specimen estimate for subsequent
@@ -198,6 +118,5 @@ ProcessResult SpecimenFinder::process_frame(unsigned framenum){
     }
     #endif
 
-    this->shared_data().specimen_position = best_guess.value();
     return ProcessResult::DONE;
 }

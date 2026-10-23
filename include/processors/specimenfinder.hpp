@@ -23,7 +23,7 @@ namespace SFcfg {
     constexpr int maximum_disagreeing_readings = 2;
 }
 
-class SpecimenFinder : public FrameProcessor{
+class SpecimenFinder : public FrameProcessor {
     public:
     explicit SpecimenFinder(Config cfg);
     

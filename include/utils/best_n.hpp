@@ -4,6 +4,14 @@
 #include <stdexcept>
 #include <vector>
 
+template<typename dataT,typename scoreT>
+struct Entry{
+    dataT data;
+    scoreT score;
+
+    bool operator>(const Entry<dataT,scoreT>& en) const { return score > en.score;};
+};
+
 template<typename T>
 struct BestN {
     using const_iterator = typename std::vector<T>::const_reverse_iterator;

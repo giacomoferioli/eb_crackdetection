@@ -1,8 +1,8 @@
-#include "img_processing/proc2.hpp"
-//#include "img_processing/proc2b.hpp"
-//#include "img_processing/autodistance.hpp"
+#include "processors/proc2c.hpp"
+//#include "processors/proc2b.hpp"
+//#include "processors/autodistance.hpp"
 #include "videosource/event_camera.hpp"
-#include "img_processing/specimenfinder.hpp"
+#include "processors/specimenfinder.hpp"
 #include "processing/processing.hpp"
 #include "videosource/playback.hpp"
 
@@ -30,7 +30,7 @@ int main(int, char**) {
     Playback playback("recordings/long.raw");
     Processing application(playback,config);
     application.add_processor(std::make_unique<SpecimenFinder>(config));
-    application.add_processor(std::make_unique<Proc2>(config));
+    application.add_processor(std::make_unique<Proc2c>(config));
     return application.run();
     #endif
 

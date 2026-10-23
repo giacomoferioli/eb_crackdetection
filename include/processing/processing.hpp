@@ -2,7 +2,7 @@
 
 #include "img_processing/frame.hpp"
 #include "image_saver.hpp"
-#include "specimen.hpp"
+#include "img_processing/datatypes/specimen.hpp"
 #include "utils/circular_buffer.hpp"
 #include "videosource/event_source.hpp"
 

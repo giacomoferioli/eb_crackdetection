@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+// Geometric primitives shared by frame algorithms and image processors.
 struct Point {
     float x, y;
 };

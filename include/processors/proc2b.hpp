@@ -1,4 +1,6 @@
 #pragma once
+
+#include "img_processing/datatypes/dic.hpp"
 #include "processing/processing.hpp"
 
 #include <fstream>
@@ -47,22 +49,6 @@ namespace Proc2cfg {
     constexpr float specimen_body_search_interval = 1.0;
 }
 
-struct Block{
-    int x0,y0,w,h;
-    int x,y;
-
-    Block(int x0, int y0, int w, int h) : x0(x0), y0(y0), w(w), h(h), x(x0), y(y0) {};
-    Block(int x0, int y0, int w, int h, int x,int y) : x0(x0), y0(y0), w(w), h(h), x(x), y(y) {};
-
-    int ref_bottom() {return y0 + h;}
-    int bottom() {return y + h;}
-
-    int center_x() { return x + w/2;}
-    int ref_center_x() { return x0 + w/2;}
-    int center_y() { return y + h/2;}
-    int ref_center_y() { return y0 + h/2;}
-};
-
 class Proc2b : public FrameProcessor{
     public:
     explicit Proc2b(Config cfg);
@@ -81,21 +67,21 @@ class Proc2b : public FrameProcessor{
     float find_crack();
 
 
-    float correlate(int x, int y, Block block);
-    float correlate(float x, float y, Block block);
+    float correlate(int x, int y, DicBlock block);
+    float correlate(float x, float y, DicBlock block);
 
     void init(float t);
     void procFrame();
 
-    Block& top_block(size_t i) { return blocks[2 * i]; }
-    Block& btm_block(size_t i) { return blocks[2 * i + 1]; }
+    DicBlock& top_block(size_t i) { return blocks[2 * i]; }
+    DicBlock& btm_block(size_t i) { return blocks[2 * i + 1]; }
 
     /*  useful data for crack search */
     double midline; 
     int uncracked_specimen = 10;
 
     /* */
-    std::vector<Block> blocks;
+    std::vector<DicBlock> blocks;
 
     float ref_frame_last_save;
     Frame reference_frame;
