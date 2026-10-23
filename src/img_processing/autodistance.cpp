@@ -5,11 +5,11 @@ AutoDistance::AutoDistance(Config cfg) : FrameProcessor(cfg), output_file("data/
 
 }
 
-void AutoDistance::on_setup(){
+void AutoDistance::on_setup(unsigned){
     
 }
 
-void AutoDistance::on_termination(){
+void AutoDistance::on_termination(unsigned){
     output_file.close();
 }
 

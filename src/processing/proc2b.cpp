@@ -20,7 +20,7 @@ Proc2b::Proc2b(Config cfg) : FrameProcessor(cfg),
 #define OVERLAYSCALING 1
 #define RAWSCALING 16
 
-void Proc2b::on_setup() {
+void Proc2b::on_setup(unsigned) {
     overlay_frame.reset(width, height, 0.0F);
     processed_frame.reset(width, height, 0.0F);
     img_saver.reset(new ImageSaver(
@@ -36,7 +36,7 @@ void Proc2b::on_setup() {
     ));
 }
 
-void Proc2b::on_termination() {
+void Proc2b::on_termination(unsigned) {
     output_file.close();
     output_file_2.close();
 }

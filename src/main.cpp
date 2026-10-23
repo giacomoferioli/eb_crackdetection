@@ -27,9 +27,10 @@ int main(int, char**) {
     application.add_processor(std::make_unique<SpecimenFinder>(config));
     return application.run_console(camera);
     #else
-    Playback playback("recordings/SFtest1.raw");
+    Playback playback("recordings/long.raw");
     Processing application(playback,config);
     application.add_processor(std::make_unique<SpecimenFinder>(config));
+    application.add_processor(std::make_unique<Proc2>(config));
     return application.run();
     #endif
 

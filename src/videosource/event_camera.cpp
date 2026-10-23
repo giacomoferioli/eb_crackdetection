@@ -9,7 +9,7 @@
 #include <mutex>
 #include <utility>
 
-#include "timing.hpp"
+#include "utils/timing.hpp"
 
 #if defined(HAVE_OPENEB)
 #include <metavision/hal/facilities/i_ll_biases.h>

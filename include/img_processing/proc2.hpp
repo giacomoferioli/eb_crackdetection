@@ -39,8 +39,8 @@ class Proc2 : public FrameProcessor{
     
     protected:
 
-    void on_setup() override;
-    void on_termination() override;
+    void on_setup(unsigned framenum) override;
+    void on_termination(unsigned framenum) override;
     ProcessResult process_frame(unsigned framenum) override;
 
     private:
@@ -54,7 +54,7 @@ class Proc2 : public FrameProcessor{
     float correlate(int x, int y, Block block);
     float correlate(float x, float y, Block block);
 
-    void init(float t);
+    void DIC_init(float t);
     void procFrame();
 
     float& pix(int x,int y) { return frame[y * width + x];}
@@ -71,7 +71,7 @@ class Proc2 : public FrameProcessor{
     std::vector<float> ref_raw_frame;
 
     std::vector<float> procframe;
-    std::vector<float> frame;
+    Frame frame;
 
     std::ofstream output_file;
 };

@@ -1,12 +1,13 @@
 #pragma once
 
+#include "img_processing/geometry.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include "datatypes.hpp"
 
 namespace FrameCfg {
     constexpr int line_search_semi_interval = 3;

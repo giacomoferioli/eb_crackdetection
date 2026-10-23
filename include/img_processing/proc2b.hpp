@@ -69,8 +69,8 @@ class Proc2b : public FrameProcessor{
     
     protected:
 
-    void on_setup() override;
-    void on_termination() override;
+    void on_setup(unsigned framenum) override;
+    void on_termination(unsigned framenum) override;
     ProcessResult process_frame(unsigned framenum) override;
 
     private:

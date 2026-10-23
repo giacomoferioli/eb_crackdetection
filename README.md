@@ -203,10 +203,10 @@ event time is deliberately independent of CPU speed.
 
 ### `CircularBuffer<T>`
 
-`CircularBuffer`, defined in `include/utils.hpp`, stores events contributing to
-the current pseudo-frame in timestamp order. It supports FIFO `append`, `peek`,
-`pop`, and `clear` operations. It grows when full, shrinks when mostly empty,
-and refuses to allocate more than 1 GiB for its element array.
+`CircularBuffer`, defined in `include/utils/circular_buffer.hpp`, stores events
+contributing to the current pseudo-frame in timestamp order. It supports FIFO
+`append`, `peek`, `pop`, and `clear` operations. It grows when full, shrinks when
+mostly empty, and refuses to allocate more than 1 GiB for its element array.
 
 ## Frame processors
 
@@ -328,7 +328,7 @@ line through those points.
 
 ### `Point` and `Line`
 
-These small structures, defined in `include/datatypes.hpp`, describe a point and
+These small structures, defined in `include/img_processing/geometry.hpp`, describe a point and
 a line. `Line::eval(x)` evaluates the fitted y-coordinate, and `Line::Type`
 records whether the line represents a white, black, or unrestricted edge.
 
@@ -348,10 +348,10 @@ calendar timestamps.
 
 ### Other helpers
 
-- `kill_outliers()` replaces a strong local outlier with the mean of its
-  neighbors.
-- `create_line_convolution_matrix()` creates a normalized square kernel for a
-  line at a selected angle and thickness.
+- `BestN`, in `include/utils/best_n.hpp`, retains a fixed number of the
+  highest-ranked values.
+- The grouping helpers in `include/utils/grouping.hpp` select mutually
+  compatible candidates and the largest candidate groups.
 
 ## Selecting and ordering processors
 

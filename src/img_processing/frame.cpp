@@ -1,6 +1,7 @@
 #include "img_processing/frame.hpp"
-#include "datatypes.hpp"
-#include "utils.hpp"
+
+#include "utils/best_n.hpp"
+#include "utils/grouping.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -8,6 +9,18 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+
+namespace {
+
+template<typename Value>
+struct Entry {
+    int ix;
+    Value val;
+
+    bool operator>(const Entry& rhs) const { return val > rhs.val; }
+};
+
+} // namespace
 
 //decentemente controllato
 Line Frame::find_hline(int x0, int y0, int w, int h,Line::Type type) {

@@ -1,6 +1,6 @@
 #include "processing/processing.hpp"
 #include "image_saver.hpp"
-#include "timing.hpp"
+#include "utils/timing.hpp"
 #include "videosource/event_camera.hpp"
 
 #include <algorithm>
@@ -194,7 +194,7 @@ void Processing::add_processor(std::unique_ptr<FrameProcessor> processor) {
     processors_.push_back(std::move(processor));
 }
 
-void Processing::setup_current_processor() {
+void Processing::setup_current_processor(unsigned framenum) {
     if(processor_running_ || processor_ix_ >= processors_.size())
         return;
 
@@ -204,7 +204,10 @@ void Processing::setup_current_processor() {
     processor.height = height;
     processor.raw_frame_ = &raw_frame;
     processor.events_ = &events_;
-    processor.on_setup();
+    // [R] Inject the persistent handoff context before the stage initializes.
+    processor.shared_data_ = &shared_data_;
+    // [R] This is the first frame that will be passed to the newly active stage.
+    processor.on_setup(framenum);
     processor_running_ = true;
 }
 
@@ -213,18 +216,21 @@ void Processing::terminate_current_processor() {
         return;
 
     // The guard makes termination safe from every exit path in run().
-    processors_[processor_ix_]->on_termination();
+    // [R] Report the most recent frame processed by this stage, not the frame
+    // on which an external stop condition happened to be observed.
+    processors_[processor_ix_]->on_termination(last_processed_framenum_);
     processor_running_ = false;
 }
 
 FrameProcessor* Processing::process_frame(unsigned framenum) {
     // Lazily start the current stage on the first frame assigned to it.
-    setup_current_processor();
+    setup_current_processor(framenum);
     if(!processor_running_)
         return nullptr;
 
     FrameProcessor* processor = processors_[processor_ix_].get();
     ProcessResult result = processor->process_frame(framenum);
+    last_processed_framenum_ = framenum;
 
     // ERR stops the pipeline; DONE hands the next frame to the next stage.
     if(result == ProcessResult::ERR){

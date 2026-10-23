@@ -2,14 +2,16 @@
 
 #include "processing/processing.hpp"
 
+#include <fstream>
+
 class AutoDistance : public FrameProcessor{
     public:
     explicit AutoDistance(Config cfg);
     
     protected:
 
-    void on_setup() override;
-    void on_termination() override;
+    void on_setup(unsigned framenum) override;
+    void on_termination(unsigned framenum) override;
     ProcessResult process_frame(unsigned framenum) override;
 
     private:

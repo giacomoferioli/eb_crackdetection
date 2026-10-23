@@ -19,8 +19,8 @@ Proc2::Proc2(Config cfg) : FrameProcessor(cfg), output_file("data/proc2out.csv")
 #define OVERLAYSCALING 1
 #define RAWSCALING 16
 
-void Proc2::on_setup() {
-    frame.assign(width*height,0);
+void Proc2::on_setup(unsigned framenum) {
+    frame.reset(width, height, 0);
     procframe.assign(width*height,0);
     img_saver.reset(new ImageSaver(
     [this] (int ix) { 
@@ -33,9 +33,12 @@ void Proc2::on_setup() {
     },
     width,height,"proc_images/"
     ));
+
+    // [R] Anchor time-dependent initialization to this processor's first frame.
+    DIC_init(framenum * cfg.processing_interval);
 }
 
-void Proc2::on_termination() {
+void Proc2::on_termination(unsigned) {
     output_file.close();
 }
 
@@ -109,11 +112,23 @@ float Proc2::correlate(float x, float y, Block block){
     return R2;
 }
 
-void Proc2::init(float t){
+void Proc2::DIC_init(float t){
     procFrame();
     ref_raw_frame = procframe;
     ref_frame_last_save = t;
 
+    SpecimenPositionInfo pos = shared_data().specimen_position.value();
+
+    for( int i = 0; i < width; i++)
+        frame(i,std::round(pos.top.eval(i))) = 1;
+
+    for( int i = 100; i + 25 < width; i += 25){
+        blocks.push_back( Block{
+            i,(int)pos.top.eval(i)+1,25,30
+        });
+    }
+
+    /*
     for(int i = 0; i < Proc2cfg::blocks_n_x; i++)
         for(int j = 0; j < Proc2cfg::blocks_n_y; j++)
             //blocks.push_back( {Proc2cfg::blocks_x0 + i * Proc2cfg::blocks_spacing_x,Proc2cfg::blocks_y0 + j * Proc2cfg::blocks_spacing_y,Proc2cfg::blocks_w,Proc2cfg::blocks_h });
@@ -121,6 +136,7 @@ void Proc2::init(float t){
                 width - Proc2cfg::blocks_dist_from_border - Proc2cfg::blocks_spacing_x * (Proc2cfg::blocks_n_x - 1) - Proc2cfg::blocks_w + i * Proc2cfg::blocks_spacing_x,
                 Proc2cfg::blocks_y0 + j * Proc2cfg::blocks_spacing_y,
                 Proc2cfg::blocks_w,Proc2cfg::blocks_h });
+    */
 }
 
 /*
@@ -330,10 +346,6 @@ ProcessResult Proc2::process_frame(unsigned framenum){
     std::fill(frame.begin(), frame.end(), 0);
     //load the first frame as reference
     //this assumes that processing start is high enough that a fully formed pseudoframe is already formed
-    if( ref_raw_frame.size() == 0){
-        init(t);
-        return ProcessResult::OK;
-    }
     
     procFrame();
 

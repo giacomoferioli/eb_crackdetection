@@ -1,10 +1,8 @@
 #pragma once
+
 #include "processing/processing.hpp"
-#include "datatypes.hpp"
 
-#include <fstream>
-
-#include "utils.hpp"
+#include <optional>
 
 #define SF_DRAW true
 
@@ -31,19 +29,17 @@ class SpecimenFinder : public FrameProcessor{
     
     protected:
 
-    void on_setup() override;
-    void on_termination() override;
+    void on_setup(unsigned framenum) override;
+    void on_termination(unsigned framenum) override;
     ProcessResult process_frame(unsigned framenum) override;
+
+    std::optional<SpecimenPositionInfo> result() { return specimen_pos; }
 
     private:
 
-    CircularBuffer<SpecimenPosition> readings;
     void procFrame();
 
-    /*  useful data for crack search */
-
-    /* */
-
+    std::optional<SpecimenPositionInfo> specimen_pos = std::nullopt;
     float ref_frame_last_save;
     Frame processed_frame;
     

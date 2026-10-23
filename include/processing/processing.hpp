@@ -1,12 +1,15 @@
 #pragma once
 
 #include "img_processing/frame.hpp"
-#include "videosource/event_source.hpp"
 #include "image_saver.hpp"
-#include "utils.hpp"
+#include "specimen.hpp"
+#include "utils/circular_buffer.hpp"
+#include "videosource/event_source.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -35,8 +38,18 @@ enum class ProcessResult {
     DONE
 };
 
+// [R] Processing owns this typed handoff object for the lifetime of the whole
+// processor pipeline. Producers publish successful results and later stages can
+// read them without globals, files, or ownership transfers.
+struct ProcessingData {
+    std::optional<SpecimenPositionInfo> specimen_position;
+    unsigned specimen_position_frame = 0;
+};
+
 // Derive from FrameProcessor and implement process_frame() to build an image
-// processor. on_setup() is called when the processor becomes active.
+// processor.
+// [R] Lifecycle hooks receive the first and last frame assigned to the
+// processor, respectively.
 class FrameProcessor {
 public:
     explicit FrameProcessor(Config cfg) : cfg(cfg) {}
@@ -46,8 +59,8 @@ public:
     FrameProcessor& operator=(const FrameProcessor&) = delete;
 
 protected:
-    virtual void on_setup() {}
-    virtual void on_termination() {}
+    virtual void on_setup(unsigned) {}
+    virtual void on_termination(unsigned) {}
     virtual ProcessResult process_frame(unsigned framenum) = 0;
 
     const std::vector<Event>& events() const { return *events_; }
@@ -56,6 +69,11 @@ protected:
     int16_t PS(int ix) const { return (*raw_frame_)[ix]; }
 
     BasicFrame<std::int16_t>& get_raw_frame() { return *raw_frame_; };
+
+    // [R] The pointer is injected before on_setup(), so every active processor
+    // can publish or consume typed results from earlier processing stages.
+    ProcessingData& shared_data() { return *shared_data_; }
+    const ProcessingData& shared_data() const { return *shared_data_; }
 
     Config cfg;
     int width = 0;
@@ -68,6 +86,7 @@ private:
 
     BasicFrame<std::int16_t>* raw_frame_ = nullptr;
     const std::vector<Event>* events_ = nullptr;
+    ProcessingData* shared_data_ = nullptr;
 };
 
 // Owns the event source and pseudoframe. Frame processors run in insertion
@@ -86,7 +105,7 @@ public:
     int run_console(EventCamera& camera);
 
 private:
-    void setup_current_processor();
+    void setup_current_processor(unsigned framenum);
     void terminate_current_processor();
     FrameProcessor* process_frame(unsigned framenum);
     void stop_processing(const char* reason);
@@ -96,8 +115,13 @@ private:
     int width;
     int height;
 
+    // [R] Declared before the processors so it outlives every processor object.
+    ProcessingData shared_data_;
     std::vector<std::unique_ptr<FrameProcessor>> processors_;
     std::size_t processor_ix_ = 0;
+    // [R] Remember the last frame actually handled by the active processor so
+    // shutdown paths do not report a later, unprocessed scheduling frame.
+    unsigned last_processed_framenum_ = 0;
     bool processor_running_ = false;
     bool processing_stopped_ = false;
     bool processing_error_ = false;
