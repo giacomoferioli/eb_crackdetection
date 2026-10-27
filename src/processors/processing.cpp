@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <ostream>
 #include <poll.h>
 #include <sstream>
@@ -18,6 +19,11 @@
 #include <string>
 #include <unistd.h>
 #include <utility>
+
+#if FILTERED_EVT2_RECORDING_ENABLED && defined(HAVE_OPENEB)
+#include <metavision/sdk/base/events/event_cd.h>
+#include <metavision/sdk/stream/raw_evt2_event_file_writer.h>
+#endif
 
 /*
  * This file coordinates the event-to-frame processing pipeline.
@@ -42,6 +48,134 @@
  * acquisition starts.
  */
 
+namespace {
+
+#if FILTERED_EVT2_RECORDING_ENABLED && defined(HAVE_OPENEB)
+
+std::filesystem::path unused_filtered_raw_path(){
+    const std::filesystem::path base(FILTERED_EVT2_OUTPUT_PATH);
+    std::error_code error;
+    if(!std::filesystem::exists(base,error) && !error)
+        return base;
+    if(error)
+        throw std::runtime_error("could not inspect filtered RAW path: " + error.message());
+
+    for(unsigned suffix = 1; suffix != 0; suffix++){
+        const std::filesystem::path candidate =
+            base.parent_path() /
+            (base.stem().string() + "_" + std::to_string(suffix) + base.extension().string());
+        if(!std::filesystem::exists(candidate,error) && !error)
+            return candidate;
+        if(error)
+            throw std::runtime_error("could not inspect filtered RAW path: " + error.message());
+    }
+    throw std::runtime_error("could not choose a free filtered RAW path");
+}
+
+class FilteredEvt2Recorder {
+public:
+    FilteredEvt2Recorder(int width,int height)
+        : width_(width),height_(height),keep_mask_(static_cast<std::size_t>(width) * height,0) {
+        try{
+            path_ = unused_filtered_raw_path();
+            if(path_.has_parent_path())
+                std::filesystem::create_directories(path_.parent_path());
+            writer_ = std::make_unique<Metavision::RAWEvt2EventFileWriter>(
+                width_,height_,path_);
+            writer_->add_metadata("event_filter","active DIC blocks with vertical margin");
+            writer_->add_metadata("event_filter_vertical_margin_px",
+                                  std::to_string(FILTERED_EVT2_VERTICAL_BLOCK_MARGIN));
+            converted_events_.reserve(65536);
+            std::cout << "Filtered EVT2 recording: " << path_.string() << '\n';
+        }catch(const std::exception& exception){
+            std::cerr << "Could not start filtered EVT2 recording: "
+                      << exception.what() << '\n';
+            writer_.reset();
+        }
+    }
+
+    ~FilteredEvt2Recorder(){
+        if(!writer_)
+            return;
+        try{
+            writer_->close();
+        }catch(const std::exception& exception){
+            std::cerr << "Could not finalize filtered EVT2 recording: "
+                      << exception.what() << '\n';
+        }
+    }
+
+    void write(const std::vector<Event>& events,const ProcessingData& data){
+        if(!writer_ || events.empty())
+            return;
+
+        try{
+            if(data.dic_tracking_locked &&
+               cached_regions_version_ != data.dic_tracking_regions_version)
+                rebuild_keep_mask(data);
+
+            converted_events_.clear();
+            converted_events_.reserve(std::max(converted_events_.capacity(),events.size()));
+            for(const Event& event : events){
+                if(data.dic_tracking_locked){
+                    if(event.x >= width_ || event.y >= height_)
+                        continue;
+                    const std::size_t ix = static_cast<std::size_t>(event.y) * width_ + event.x;
+                    if(keep_mask_[ix] == 0)
+                        continue;
+                }
+                converted_events_.emplace_back(
+                    event.x,event.y,static_cast<short>(event.polarity),event.timestamp_us);
+            }
+
+            if(!converted_events_.empty() &&
+               !writer_->add_events(converted_events_.data(),
+                                    converted_events_.data() + converted_events_.size()))
+                throw std::runtime_error("Metavision rejected an event batch");
+        }catch(const std::exception& exception){
+            std::cerr << "Filtered EVT2 recording stopped: " << exception.what() << '\n';
+            writer_.reset();
+        }
+    }
+
+private:
+    void rebuild_keep_mask(const ProcessingData& data){
+        std::fill(keep_mask_.begin(),keep_mask_.end(),0);
+        for(const ProcessingData::DicTrackingRegion& region : data.dic_tracking_regions){
+            const int x0 = std::clamp(region.x,0,width_);
+            const int x1 = std::clamp(region.x + region.width,0,width_);
+            const int y0 = std::clamp(
+                region.y - FILTERED_EVT2_VERTICAL_BLOCK_MARGIN,0,height_);
+            const int y1 = std::clamp(
+                region.y + region.height + FILTERED_EVT2_VERTICAL_BLOCK_MARGIN,0,height_);
+            for(int y = y0; y < y1; y++)
+                std::fill(keep_mask_.begin() + static_cast<std::size_t>(y) * width_ + x0,
+                          keep_mask_.begin() + static_cast<std::size_t>(y) * width_ + x1,1);
+        }
+        cached_regions_version_ = data.dic_tracking_regions_version;
+    }
+
+    int width_;
+    int height_;
+    std::filesystem::path path_;
+    std::unique_ptr<Metavision::RAWEvt2EventFileWriter> writer_;
+    std::vector<Metavision::EventCD> converted_events_;
+    std::vector<std::uint8_t> keep_mask_;
+    std::uint64_t cached_regions_version_ = std::numeric_limits<std::uint64_t>::max();
+};
+
+#else
+
+class FilteredEvt2Recorder {
+public:
+    FilteredEvt2Recorder(int,int) {}
+    void write(const std::vector<Event>&,const ProcessingData&) {}
+};
+
+#endif
+
+}
+
 Config load_config(const std::string& path) {
     std::ifstream file(path);
     if(!file)
@@ -62,6 +196,9 @@ Config load_config(const std::string& path) {
         SAVING_END,
         CAMERA_DISTANCE,
         PIXELS_PER_MM,
+        PIXELS_PER_MM_HEIGHT,
+        VERTICAL_PIXELS_PER_MM_REFERENCE,
+        AUTOMATIC_DISTORTION_COMPENSATION,
         DISPLACEMENT_RATE,
         SETTING_COUNT
     };
@@ -71,7 +208,8 @@ Config load_config(const std::string& path) {
         "save_interval", "max_event_rate", "pseudoframe_length",
         "processing_interval", "processing_start", "processing_end",
         "saving_start", "saving_end", "camera_distance",
-        "pixels_per_mm","displacement_rate"
+        "pixels_per_mm", "pixels_per_mm_height", "vertical_pixels_per_mm_reference",
+        "automatic_distortion_compensation", "displacement_rate"
     };
     std::array<bool,SETTING_COUNT> found{};
     Config config{};
@@ -158,6 +296,20 @@ Config load_config(const std::string& path) {
         }else if(key == "pixels_per_mm"){
             mark_found(PIXELS_PER_MM);
             read_number(config.pixels_per_mm);
+        }else if(key == "pixels_per_mm_height"){
+            mark_found(PIXELS_PER_MM_HEIGHT);
+            read_number(config.pixels_per_mm_height);
+        }else if(key == "vertical_pixels_per_mm_reference"){
+            mark_found(VERTICAL_PIXELS_PER_MM_REFERENCE);
+            read_number(config.vertical_pixels_per_mm_reference);
+        }else if(key == "automatic_distortion_compensation"){
+            mark_found(AUTOMATIC_DISTORTION_COMPENSATION);
+            if(value == "true")
+                config.automatic_distortion_compensation = true;
+            else if(value == "false")
+                config.automatic_distortion_compensation = false;
+            else
+                throw std::runtime_error(path + ":" + std::to_string(line_number) + ": automatic_distortion_compensation must be true or false");
         }else if(key == "displacement_rate"){
             mark_found(DISPLACEMENT_RATE);
             read_number(config.displacement_rate);
@@ -255,6 +407,7 @@ void Processing::stop_processing(const char* reason) {
 
 int Processing::run() {
     std::int64_t run_start = timing::us();
+    FilteredEvt2Recorder filtered_evt2_recorder(width,height);
 
     // A pending character on stdin is the user's stop signal for the main loop.
     std::ios_base::sync_with_stdio(false);
@@ -271,6 +424,9 @@ int Processing::run() {
         camera_.stop();
         return 0;
     }
+
+    // No DIC regions exist before lock, so the initial stream is retained whole.
+    filtered_evt2_recorder.write(events_,shared_data_);
 
     // Convert configuration times once and keep scheduling arithmetic integral.
     const std::int64_t stream_start_us = events_.front().timestamp_us;
@@ -380,6 +536,10 @@ int Processing::run() {
             }
         }
 
+        // Proc2c publishes updated regions while processing this batch. Until
+        // that first publication, write() deliberately retains every event.
+        filtered_evt2_recorder.write(events_,shared_data_);
+
         // Save at most once per interval and only while saving is enabled.
         if(frame_time_us - last_save_us >= save_interval_us &&
            frame_time_us >= saving_start_us && frame_time_us < saving_end_us) {
@@ -431,6 +591,8 @@ int Processing::run_console(EventCamera& camera) {
         camera.stop();
         return 1;
     }
+
+    FilteredEvt2Recorder filtered_evt2_recorder(width,height);
 
     bool assembling_pseudoframe = false;
     bool processing_enabled = false;
@@ -624,6 +786,8 @@ int Processing::run_console(EventCamera& camera) {
                 output_processor = nullptr;
             }
         }
+
+        filtered_evt2_recorder.write(events_,shared_data_);
 
         // [R] Save computed raw and processor images together at cfg.save_interval.
         if(assembling_pseudoframe && now - last_save_us >= save_interval_us){

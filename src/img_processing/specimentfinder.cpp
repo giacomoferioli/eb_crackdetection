@@ -87,7 +87,7 @@ ProcessResult SpecimenFinder::process_frame(unsigned framenum){
         1,
         height / 2,
         SFcfg::max_speciment_tilt,
-        cfg.pixels_per_mm * SFcfg::specimen_thickness,
+        cfg.vertical_pixels_per_mm_reference * SFcfg::specimen_thickness,
         SFcfg::mininum_number_of_agreeing_guesses,
         SFcfg::maximum_number_of_disagreeing_guesses};
 

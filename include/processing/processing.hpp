@@ -15,6 +15,12 @@
 
 class EventCamera;
 
+// Set to 0 to compile out the derived EVT2 recording. The filtered stream keeps
+// the original image coordinates and is written alongside the normal outputs.
+#define FILTERED_EVT2_RECORDING_ENABLED 0
+#define FILTERED_EVT2_VERTICAL_BLOCK_MARGIN 20
+#define FILTERED_EVT2_OUTPUT_PATH "data/filtered_events_evt2.raw"
+
 
 struct Config {
     bool realtime;
@@ -29,6 +35,9 @@ struct Config {
 
     double camera_distance;
     float pixels_per_mm;
+    float pixels_per_mm_height;
+    float vertical_pixels_per_mm_reference;
+    bool automatic_distortion_compensation;
     float displacement_rate;
 };
 
@@ -42,8 +51,21 @@ enum class ProcessResult {
 // processor pipeline. Producers publish successful results and later stages can
 // read them without globals, files, or ownership transfers.
 struct ProcessingData {
+    struct DicTrackingRegion {
+        int x;
+        int y;
+        int width;
+        int height;
+    };
+
     std::optional<SpecimenPositionInfo> specimen_position;
     unsigned specimen_position_frame = 0;
+
+    // Empty/unlocked means that the filtered recorder must retain the complete
+    // stream. Proc2c publishes the active DIC regions once its blocks exist.
+    bool dic_tracking_locked = false;
+    std::uint64_t dic_tracking_regions_version = 0;
+    std::vector<DicTrackingRegion> dic_tracking_regions;
 };
 
 // Derive from FrameProcessor and implement process_frame() to build an image

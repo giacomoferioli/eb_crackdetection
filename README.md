@@ -476,6 +476,17 @@ The current application produces:
 - `proc_images/*.bmp`: processed frames and red diagnostic overlays;
 - `data/proc2out.csv`: time and estimated crack x-coordinate;
 - `data/proc2out2.csv`: specimen-tracking and reference-update diagnostics.
+- `data/proc2c_pixel_scale.csv`: multi-position thickness calibration containing
+  the raw and monotone-filtered vertical scale and the derived horizontal scale.
+- `data/filtered_events_evt2*.raw`: EVT2 recordings containing the complete
+  stream until Proc2c obtains its DIC lock, then only events inside active DIC
+  blocks or the 20-pixel bands immediately above and below them.
+
+Filtered recording is controlled at compile time by
+`FILTERED_EVT2_RECORDING_ENABLED` in `include/processing/processing.hpp`. The
+same header defines the vertical margin and base output path. Existing files
+are preserved by adding a numeric suffix. The resulting EVT2 files can be read
+through the normal `Playback` class.
 
 Image filenames are the deterministic pseudo-frame time in milliseconds.
 

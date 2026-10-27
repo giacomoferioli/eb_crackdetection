@@ -25,9 +25,10 @@ int main(int, char**) {
 
     // [R] The registered processor is dormant until command 30, 32, or 40 starts it.
     application.add_processor(std::make_unique<SpecimenFinder>(config));
+    application.add_processor(std::make_unique<Proc2c>(config));
     return application.run_console(camera);
     #else
-    Playback playback("recordings/long.raw");
+    Playback playback("recordings/test2.raw");
     Processing application(playback,config);
     application.add_processor(std::make_unique<SpecimenFinder>(config));
     application.add_processor(std::make_unique<Proc2c>(config));

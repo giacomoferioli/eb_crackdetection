@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-// Plays a RAW EVT3 recording through the same interface as the live camera.
+// Plays a Metavision RAW event recording through the same interface as the live camera.
 class Playback final : public EventSource {
 public:
     explicit Playback(const std::string& path, bool realtime = false);
