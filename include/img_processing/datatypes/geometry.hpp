@@ -3,9 +3,23 @@
 #include <algorithm>
 #include <cmath>
 
+struct Pixel {
+    int x,y;
+};
+
 // Geometric primitives shared by frame algorithms and image processors.
 struct Point {
     float x, y;
+
+    float mod() const { return sqrt(x*x+y*y);}
+    float mod2() const { return (x*x+y*y);}
+    float distance(const Point& p) const {return (*this - p).mod();}
+    float distx(const Point& p) const { return std::abs(x-p.x);}
+    float disty(const Point& p) const { return std::abs(y-p.y);}
+
+    Point operator-(const Point& rhs) const {
+        return {x-rhs.x,y-rhs.x};
+    }
 };
 
 struct LinePoint : public Point {

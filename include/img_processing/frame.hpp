@@ -4,11 +4,16 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+struct VSegment : Point{
+    float strength;
+};
 
 namespace FrameCfg {
     constexpr int line_search_semi_interval = 3;
@@ -143,6 +148,11 @@ private:
 class Frame : public BasicFrame<float> {
 public:
     using BasicFrame<float>::BasicFrame;
+    Frame(const BasicFrame<std::int16_t> base) : BasicFrame<float>(base.width(),base.height()){
+        for(int j = 0; j < base.height(); j++)
+            for(int i = 0; i < base.width();i++)
+                (*this)(i,j) = base(i,j);
+    }
 
     Line find_hline(int x0,int y0, int w, int h,Line::Type type = Line::Type::ANY);
     std::vector<Line> find_hlines(int x0,int y0, int w, int h,size_t num, Line::Type type = Line::Type::ANY);
@@ -150,4 +160,9 @@ public:
         const SpecimenSearchParameters& parameters,
         Frame* diagnostic_overlay = nullptr);
     HLineRide ride_hline(Point start, HLineDirection direction, Line::Type type = Line::Type::ANY) const;
+
+    std::optional<Frame> vscores(int x0, int y0, int w, int h,int dist) const;
+
+    void kill_hot_pixels(float maximum_relative_value = 6, int minimun_value = 5);
+    std::vector<VSegment> find_vsegments(float approx_length) ;
 };

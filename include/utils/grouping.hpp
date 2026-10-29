@@ -108,10 +108,7 @@ BestN<Group<T>> select_biggest_groups(
 }
 
 template <typename T, typename CustomGroup>
-BestN<CustomGroup> select_biggest_groups(
-    const std::vector<T>& candidates,
-    unsigned min_size,
-    std::size_t num) {
+BestN<CustomGroup> select_biggest_groups( const std::vector<T>& candidates, unsigned min_size, std::size_t num) {
     BestN<CustomGroup> best(num);
     static_assert(
         std::is_base_of_v<Group<T>, CustomGroup>,

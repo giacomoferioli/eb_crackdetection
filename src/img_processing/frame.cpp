@@ -1,5 +1,6 @@
 #include "img_processing/frame.hpp"
 
+#include "img_processing/datatypes/geometry.hpp"
 #include "utils/best_n.hpp"
 #include "utils/grouping.hpp"
 
@@ -8,7 +9,10 @@
 #include <cstddef>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <vector>
+
+#include "utils/best_n.hpp"
 
 
 //decentemente controllato
@@ -508,4 +512,129 @@ HLineRide Frame::ride_hline(Point start, HLineDirection direction, Line::Type ty
     result.type = type;
     result.confidence = best.confidence_sum / best.confident_steps;
     return result;
+}
+
+void Frame::kill_hot_pixels(float maximum_relative_value, int minimun_value){
+    for(int y = 1; y < height() - 1; y++){
+        for(int x = 1; x < width() - 1; x++){
+            const float neighbour_average = (
+                std::abs((*this)(x - 1, y)) + std::abs((*this)(x + 1, y)) +
+                std::abs((*this)(x, y - 1)) + std::abs((*this)(x, y + 1))) / 4.0F;
+
+            if(std::abs((*this)(x, y)) > minimun_value && std::abs((*this)(x, y)) > maximum_relative_value * neighbour_average){
+                (*this)(x, y) = (*this)(x, y) > 0
+                    ? static_cast<std::int16_t>(std::lround(neighbour_average))
+                    : static_cast<std::int16_t>(-std::lround(neighbour_average));
+            }
+        }
+    }
+}
+
+std::optional<Frame> Frame::vscores(int x0, int y0, int w, int h,int dist) const {
+    if( x0 < 0 || y0 < dist || x0 + w > width() || y0 + h + dist > height() || w < 0 || h < 0 || dist < 1)
+        return std::nullopt;
+    
+    Frame result(w,h);
+
+    for(int dx = 0; dx < w; dx++){
+        float running_score = 0;
+        for(int y = y0 - dist; y < y0 + dist; y++)
+            running_score += (*this)(x0+dx,y);
+
+        for(int dy = 0; dy < h; dy++){
+            running_score += (*this)(x0+dx,y0+dy+dist);
+            result(dx,dy) = running_score;
+            running_score -= (*this)(x0+dx,y0+dy-dist);
+        }
+    }
+
+    return result;
+    
+}
+
+std::vector<VSegment> Frame::find_vsegments(float approx_length)  {
+    if(approx_length < 5) //made it up
+        return {};
+    
+    const int dist = (approx_length-1) / 4;
+    constexpr float min_score_rel = 2;
+    //contains vscores
+    Frame res = vscores(0, dist, width(), height()-2*dist, dist).value();
+
+    //select candidates with a high score
+    std::vector<Pixel> hits;
+    for( int y = 0; y < res.height(); y += approx_length/2){
+        for(int x = 1; x < res.width()-1; x++){
+            const float score = 2 * res(x,y) - res(x-1,y) - res(x+1,y);
+            
+            //we found an x
+            if ( std::abs(score) > (1+2*dist)*min_score_rel)
+                hits.push_back({x,y+dist});
+    
+        }
+    }
+
+    std::vector<bool> selected(hits.size());
+    constexpr int h_searchdist = 5;
+    
+    std::vector<VSegment> selected_points;
+    //grouping time
+    for(size_t ix = 0; ix < hits.size(); ix++){
+        if(selected[ix])
+            continue;
+        selected[ix] = true;
+        
+        Pixel& pix = hits[ix];
+
+        //removes hits from same segment
+        for(size_t ix2 = ix + 1; ix2 < hits.size(); ix2++){
+            if( selected[ix2])
+                continue;
+            Pixel& pix2 = hits[ix2];
+            if( std::abs(pix.x - pix2.x) < h_searchdist && std::abs(pix.y-pix2.y) < approx_length)
+                selected[ix2] = true;
+        }
+
+        int count = 0;
+        int tot_score = 0;
+        float tot_relx = 0;
+        float tot_rely = 0;
+        for(int dy = -approx_length; dy < approx_length; dy++){
+            if( pix.y + dy < dist || pix.y + dy >= height() - dist )
+                continue;
+
+            for(int dx = -2; dx < h_searchdist; dx++ ){
+                if( pix.x + dx < 0 || pix.x + dx >= width())
+                    continue;
+
+                const int score = std::abs( (*this)(pix.x+dx,pix.y+dy) ) - 1;
+                //const int score = std::abs( res(pix.x+dx,pix.y+dy-dist) ) - 1;
+                if(score > 0){
+                    tot_score += score;
+                    count++;
+                    tot_relx += dx * score;
+                    tot_rely += dy * score;
+                }
+            }
+        }
+
+        //basically impossible but just in case
+        if(count == 0)
+            continue;
+
+        const float x = pix.x + tot_relx / tot_score;
+        const float y = pix.y + tot_rely / tot_score;
+        Point candidate = {x,y};
+
+        bool good = true;
+        for( const Point& p : selected_points )
+            if( p.distx(candidate) < h_searchdist && p.disty(candidate) < approx_length)
+                good = false;
+        
+        if( good)
+            selected_points.push_back(VSegment{candidate,(float)tot_score});
+
+    }
+
+    return selected_points;
 }

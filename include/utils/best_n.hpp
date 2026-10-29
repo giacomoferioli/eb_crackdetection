@@ -69,6 +69,13 @@ struct BestN {
         return false;
     }
 
+    bool contains(const T& elm) const{
+        for( const T& member : *this)
+            if( elm == member)
+                return true;
+        return false;
+    }
+
 private:
     std::vector<T> values;
     std::size_t n;

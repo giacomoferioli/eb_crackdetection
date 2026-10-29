@@ -455,6 +455,7 @@ int Processing::run() {
     bool assembling_pseudoframe = pseudoframe_needed(0);
     if(assembling_pseudoframe){
         for(const Event& event : events_){
+            
             event_queue.append(event);
             raw_frame(event.x,event.y) += (int8_t)event.polarity * 2 - 1;
         }
@@ -505,12 +506,15 @@ int Processing::run() {
             // Add the current batch to both the expiry queue and pixel sums.
             for (const Event& event : events_) {
                 try{
-                    event_queue.append(event);
+                    //this is in case processing interval is bigger than pseudoframe length
+                    if( now - event.timestamp_us < pseudoframe_length_us){
+                        event_queue.append(event);
+                        raw_frame(event.x,event.y) += (int16_t)event.polarity * 2 - 1;
+                    }
                 }catch (const std::exception& e){
                     std::cout << "\n" << event_queue.peek().timestamp_us << "\n" << event.timestamp_us << std::endl;
                     throw;
                 }
-                raw_frame(event.x,event.y) += (int16_t)event.polarity * 2 - 1;
             }
         }
 
