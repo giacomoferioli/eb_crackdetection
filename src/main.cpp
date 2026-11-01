@@ -4,6 +4,7 @@
 //#include "processors/proc2b.hpp"
 //#include "processors/autodistance.hpp"
 //#include "videosource/event_camera.hpp"
+#include "videosource/eblite_playback.hpp"
 //#include "processors/specimenfinder.hpp"
 #include "videosource/playback.hpp"
 
@@ -25,14 +26,16 @@ int main(int, char**) {
     }
     Processing application(camera, config);
 
-    application.add_processor(std::make_unique<SpecimenFinder>(config));
-    application.add_processor(std::make_unique<Proc2c>(config));
+    //application.add_processor(std::make_unique<SpecimenFinder>(config));
+    //application.add_processor(std::make_unique<Proc2c>(config));
     return application.run_console(camera);
     #else
     /*  #########################
         #       PLAYBACK       #
         #########################*/
-    Playback playback("recordings/fatigue1.raw");
+    //Playback playback("recordings/fatigue/fatigue2.raw",200,0,500,200);
+    EblitePlayback playback("recordings/fatigue/fatigue2.ebl");
+
     Processing application(playback,config);
     //application.add_processor(std::make_unique<SpecimenFinder>(config));
     application.add_processor(std::make_unique<DummyProcessor>(config));

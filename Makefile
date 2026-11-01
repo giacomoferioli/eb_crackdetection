@@ -1,6 +1,9 @@
 CXX ?= g++
 
 TARGET := build/image_processor
+DELTA_HISTOGRAM_TARGET := build/event_delta_histogram
+EBL_CONVERTER_TARGET := build/evt3_to_ebl
+RECORD_CAMERA_TARGET := commands/record_camera
 SRC_DIR := src
 OBJ_DIR := objs
 
@@ -37,9 +40,26 @@ CPPFLAGS += -DHAVE_OPENEB=1 $(OPENEB_CXXFLAGS)
 LDFLAGS += $(OPENEB_LDLIBS)
 endif
 
-.PHONY: all clean run
+.PHONY: all clean run tools event-delta-histogram evt3-to-ebl record-camera
 
 all: $(TARGET)
+
+tools: $(DELTA_HISTOGRAM_TARGET) $(EBL_CONVERTER_TARGET) $(RECORD_CAMERA_TARGET)
+
+event-delta-histogram: $(DELTA_HISTOGRAM_TARGET)
+
+evt3-to-ebl: $(EBL_CONVERTER_TARGET)
+
+record-camera: $(RECORD_CAMERA_TARGET)
+
+$(DELTA_HISTOGRAM_TARGET): tools/event_delta_histogram.cpp | build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
+
+$(EBL_CONVERTER_TARGET): tools/evt3_to_ebl.cpp src/eblite/format.cpp src/eblite/writer.cpp | build
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+
+$(RECORD_CAMERA_TARGET): commands/src/record_camera.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
 $(TARGET): $(OBJECTS) | build
 	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS)
@@ -58,6 +78,6 @@ run: $(TARGET)
 	#./commands/view
 
 clean:
-	rm -f $(OBJECTS) $(DEPS) $(TARGET)
+	rm -f $(OBJECTS) $(DEPS) $(TARGET) $(DELTA_HISTOGRAM_TARGET) $(EBL_CONVERTER_TARGET) $(RECORD_CAMERA_TARGET)
 
 -include $(DEPS)

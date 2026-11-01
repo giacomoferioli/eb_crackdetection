@@ -333,7 +333,7 @@ Processing::Processing(EventSource& source, Config cfg) :
     event_queue(cfg.max_event_rate * cfg.pseudoframe_length),
     raw_frame(width,height,0),
     raw_img_saver([this] (int ix) {
-            unsigned gray = std::clamp(128 + raw_frame[ix] * 16, 0, 255);
+            unsigned gray = std::clamp(128 + raw_frame[ix] * RAW_FRAME_PIX_MULTIPLIER, 0, 255);
             return gray << 24U | gray << 16U | gray << 8U | 0xFF;
       }, width,height,"images/")
 {

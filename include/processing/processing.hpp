@@ -22,6 +22,8 @@ class EventCamera;
 #define FILTERED_EVT2_OUTPUT_PATH "data/filtered_events_evt2.raw"
 
 
+#define RAW_FRAME_PIX_MULTIPLIER 64
+
 struct Config {
     bool realtime;
     std::string camera_config_path;

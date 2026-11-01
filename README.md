@@ -38,6 +38,19 @@ Live camera ------> +-----------------+           v
 not need to know whether the events come from a camera or a recording. It owns
 the pseudo-frame and invokes one `FrameProcessor` at a time.
 
+## Documentation
+
+- [Command quick reference](docs/commands.md): concise build and usage examples
+  for every tool and script.
+- [EBL technical reference](docs/ebl_technical.md): binary layout, metadata,
+  encoder, writer API, playback behavior, and current limitations.
+- [Live camera console](docs/camera_console.md): interactive camera commands and
+  lifecycle behavior.
+
+EBLITE, abbreviated **EBL**, is the project's lightweight event format. EBL
+recordings use the `.ebl` extension. The common event representation is four
+bytes; events requiring an absolute timestamp use eight bytes.
+
 ## Event data and sources
 
 ### `Event`
